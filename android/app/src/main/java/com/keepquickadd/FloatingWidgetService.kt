@@ -6,8 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
-import android.graphics.PixelFormat
 import android.graphics.Color
+import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
@@ -19,6 +19,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.keepquickadd.databinding.LayoutFloatingWidgetBinding
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class FloatingWidgetService : Service() {
 
@@ -32,32 +37,48 @@ class FloatingWidgetService : Service() {
     private var windowManager: WindowManager? = null
     private var floatingView: View? = null
     private var binding: LayoutFloatingWidgetBinding? = null
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    // Sample Keep lists - in a real app these come from Google Keep API
-    private val keepLists = listOf(
-        "Inbox",
-        "Groceries",
-        "Shopping List",
-        "Todo",
-        "Work Tasks",
-        "Ideas",
-        "Books to Read"
-    )
+    private lateinit var repository: KeepRepository
+    private var keepLists: List<KeepList> = emptyList()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        repository = KeepRepository(this)
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
         createFloatingWidget()
+        loadLists()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         isRunning = false
+        serviceScope.cancel()
         removeFloatingWidget()
+    }
+
+    private fun loadLists() {
+        serviceScope.launch {
+            val result = repository.getLists(forceRefresh = false)
+            result.fold(
+                onSuccess = { lists ->
+                    keepLists = lists
+                    setupSpinner()
+                },
+                onFailure = {
+                    // Keep the spinner empty or show a fallback
+                    Toast.makeText(
+                        this@FloatingWidgetService,
+                        "Could not load lists. Check server connection.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            )
+        }
     }
 
     private fun createNotificationChannel() {
@@ -134,11 +155,12 @@ class FloatingWidgetService : Service() {
 
     private fun setupSpinner() {
         binding?.let { b ->
+            val listTitles = keepLists.map { it.title }
             // Custom dark-themed adapter
             val adapter = object : ArrayAdapter<String>(
                 this,
                 android.R.layout.simple_spinner_item,
-                keepLists
+                listTitles
             ) {
                 override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
                     val view = super.getView(position, convertView, parent)
@@ -243,27 +265,34 @@ class FloatingWidgetService : Service() {
     private fun submitItem() {
         binding?.let { b ->
             val itemText = b.etItemText.text.toString().trim()
-            val selectedList = b.spinnerLists.selectedItem?.toString() ?: "Unknown"
+            val selectedIndex = b.spinnerLists.selectedItemPosition
+            val selectedList = keepLists.getOrNull(selectedIndex)
 
             if (itemText.isEmpty()) {
                 Toast.makeText(this, "Please enter a task name", Toast.LENGTH_SHORT).show()
                 return
             }
 
-            // Hide widget so toast is visible
+            // Hide widget immediately
             floatingView?.visibility = View.GONE
 
-            // Show toast
-            Toast.makeText(
-                this,
-                "Added \"$itemText\" to \"$selectedList\"",
-                Toast.LENGTH_LONG
-            ).show()
-
-            // Close after brief delay
-            android.os.Handler(mainLooper).postDelayed({
-                stopSelf()
-            }, 500)
+            if (selectedList != null) {
+                // Try to add via server
+                serviceScope.launch {
+                    val result = repository.addItem(selectedList.id, itemText)
+                    val message = if (result.isSuccess) {
+                        "Added \"$itemText\" to \"${selectedList.title}\""
+                    } else {
+                        "Added \"$itemText\" to \"${selectedList.title}\" (offline - sync pending)"
+                    }
+                    Toast.makeText(this@FloatingWidgetService, message, Toast.LENGTH_LONG).show()
+                    android.os.Handler(mainLooper).postDelayed({ stopSelf() }, 500)
+                }
+            } else {
+                // No list selected (still loading?)
+                Toast.makeText(this, "Added \"$itemText\" (no list selected)", Toast.LENGTH_LONG).show()
+                android.os.Handler(mainLooper).postDelayed({ stopSelf() }, 500)
+            }
         }
     }
 
