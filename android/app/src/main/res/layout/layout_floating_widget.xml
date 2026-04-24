@@ -1,68 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/widget_background">
 
-    <!-- Task name input -->
-    <EditText
-        android:id="@+id/etItemText"
+    <!-- Single row: text input + list icon + send button -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="20dp"
-        android:paddingEnd="20dp"
-        android:paddingTop="20dp"
-        android:paddingBottom="4dp"
-        android:background="@null"
-        android:hint="Item"
-        android:textColorHint="@color/hint_dark"
-        android:textColor="@color/text_primary_dark"
-        android:textSize="20sp"
-        android:inputType="text"
-        android:imeOptions="actionDone"
-        android:maxLines="1" />
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp"
+        android:gravity="center_vertical">
 
-    <!-- Divider -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@color/divider_dark" />
-
-    <!-- Bottom bar: list selector + send button -->
-    <RelativeLayout
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp">
-
-        <!-- List dropdown (Inbox style) -->
-        <Spinner
-            android:id="@+id/spinnerLists"
-            android:layout_width="140dp"
+        <!-- Item text input (takes all remaining space) -->
+        <EditText
+            android:id="@+id/etItemText"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_centerVertical="true"
-            android:layout_alignParentStart="true"
-            android:background="@drawable/spinner_background_dark"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:paddingTop="6dp"
-            android:paddingBottom="6dp"
-            android:spinnerMode="dropdown" />
+            android:layout_weight="1"
+            android:background="@null"
+            android:hint="Item"
+            android:textColorHint="@color/widget_hint"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="16sp"
+            android:inputType="text"
+            android:imeOptions="actionDone"
+            android:maxLines="1" />
 
-        <!-- Send / Add button -->
+        <!-- List picker button (shows list icon, opens dropdown) -->
+        <FrameLayout
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp">
+
+            <ImageButton
+                android:id="@+id/btnListPicker"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_list"
+                android:contentDescription="Select list"
+                android:padding="8dp" />
+
+            <!-- Hidden spinner anchored to the FrameLayout -->
+            <Spinner
+                android:id="@+id/spinnerLists"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@android:color/transparent"
+                android:spinnerMode="dropdown"
+                android:visibility="invisible" />
+
+        </FrameLayout>
+
+        <!-- Send button -->
         <ImageButton
             android:id="@+id/btnAdd"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:layout_centerVertical="true"
-            android:layout_alignParentEnd="true"
+            android:layout_marginStart="4dp"
             android:background="@drawable/btn_send_background"
             android:src="@drawable/ic_send"
             android:contentDescription="Add item"
             android:padding="8dp" />
 
-    </RelativeLayout>
+    </LinearLayout>
 
 </LinearLayout>

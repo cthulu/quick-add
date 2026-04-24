@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="24dp"
-    android:background="@color/white">
+    android:background="@color/surface">
 
     <TextView
         android:id="@+id/tvSettingsTitle"
@@ -14,7 +14,7 @@
         android:text="Backend Configuration"
         android:textSize="20sp"
         android:textStyle="bold"
-        android:textColor="@color/black"
+        android:textColor="@color/on_surface"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -82,7 +82,7 @@
         android:layout_marginTop="16dp"
         android:text="Save"
         android:backgroundTint="@color/primary"
-        android:textColor="@color/black"
+        android:textColor="@color/on_surface"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/btnTestConnection" />

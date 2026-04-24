@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/white"
+    android:background="@color/surface"
     tools:context=".MainActivity">
 
     <!-- Toolbar -->
@@ -15,7 +15,8 @@
         android:layout_height="?attr/actionBarSize"
         android:background="@color/primary"
         app:title="Keep Quick Add"
-        app:titleTextColor="@color/black" />
+        app:titleTextColor="@color/black"
+        app:subtitleTextColor="@color/black" />
 
     <!-- Content -->
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -112,7 +113,7 @@
             android:layout_marginTop="16dp"
             android:text="Start Floating Widget"
             android:backgroundTint="@color/primary"
-            android:textColor="@color/black"
+            android:textColor="@color/on_surface"
             android:visibility="gone"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -137,8 +138,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:text="⚙ Configure Backend URL"
-            android:backgroundTint="@color/gray_light"
-            android:textColor="@color/black"
+            android:backgroundTint="@color/surface_variant"
+            android:textColor="@color/on_surface"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/btnStopWidget" />

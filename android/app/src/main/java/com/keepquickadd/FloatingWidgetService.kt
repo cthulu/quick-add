@@ -5,19 +5,23 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.ArrayAdapter
+import android.view.inputmethod.EditorInfo
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.keepquickadd.databinding.LayoutFloatingWidgetBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +34,10 @@ class FloatingWidgetService : Service() {
     companion object {
         const val NOTIFICATION_ID = 1001
         const val CHANNEL_ID = "floating_widget_channel"
+        private const val CLOSE_DELAY_MS = 500L
+        // Colors resolved at runtime from theme (supports light/dark mode)
+        // See res/values/widget_colors.xml and res/values-night/widget_colors.xml
+
         var isRunning = false
             private set
     }
@@ -63,42 +71,36 @@ class FloatingWidgetService : Service() {
         removeFloatingWidget()
     }
 
+    // --- List loading ---
+
     private fun loadLists() {
         serviceScope.launch {
-            // Always load from cache first for instant display
-            val cached = repository.getLists(forceRefresh = false)
-            cached.fold(
-                onSuccess = { lists ->
-                    keepLists = lists
-                    setupSpinner()
-                },
-                onFailure = { /* no cache yet, spinner stays empty until refresh */ }
-            )
+            // Show cached data immediately for instant display
+            repository.getLists(forceRefresh = false).onSuccess { lists ->
+                keepLists = lists
+                setupSpinner()
+            }
 
-            // If cache is stale (or empty), fetch from server in the background
+            // Fetch fresh data in background if cache is stale
             if (!repository.isCacheFresh()) {
-                val fresh = repository.getLists(forceRefresh = true)
-                fresh.fold(
+                repository.getLists(forceRefresh = true).fold(
                     onSuccess = { lists ->
                         if (lists != keepLists) {
                             keepLists = lists
-                            setupSpinner() // update spinner with fresh data
+                            setupSpinner()
                         }
                     },
                     onFailure = {
                         if (keepLists.isEmpty()) {
-                            Toast.makeText(
-                                this@FloatingWidgetService,
-                                "Could not load lists. Check server connection.",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            showToast("Could not load lists. Check server connection.")
                         }
-                        // Otherwise silently keep showing cached data
                     }
                 )
             }
         }
     }
+
+    // --- Notification ---
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -110,15 +112,15 @@ class FloatingWidgetService : Service() {
                 description = getString(R.string.notification_channel_description)
                 setShowBadge(false)
             }
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
         }
     }
 
     private fun createNotification(): Notification {
-        val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
+            this, 0,
+            Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -131,34 +133,29 @@ class FloatingWidgetService : Service() {
             .build()
     }
 
+    // --- Widget creation ---
+
     private fun createFloatingWidget() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
-        val inflater = LayoutInflater.from(this)
-        binding = LayoutFloatingWidgetBinding.inflate(inflater)
+        binding = LayoutFloatingWidgetBinding.inflate(LayoutInflater.from(this))
         floatingView = binding?.root
 
-        // Full-width, anchored to bottom of screen, sits just above the keyboard
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
+            else
+                @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.START
-            // Use softInputMode to push layout above keyboard
             @Suppress("DEPRECATION")
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
                     WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
-            x = 0
-            y = 0
         }
 
         windowManager?.addView(floatingView, params)
@@ -168,169 +165,150 @@ class FloatingWidgetService : Service() {
         setupOutsideTouchDismiss(params)
         setupBackGesture()
 
-        // Auto-focus the task name field and show keyboard
         binding?.etItemText?.requestFocus()
     }
 
+    // --- Spinner ---
+
     private fun setupSpinner() {
-        binding?.let { b ->
-            val listTitles = keepLists.map { it.title }
-            val adapter = object : ArrayAdapter<String>(
-                this,
-                android.R.layout.simple_spinner_item,
-                listTitles
-            ) {
-                override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
-                    val view = super.getView(position, convertView, parent)
-                    (view as? TextView)?.apply {
-                        setTextColor(Color.parseColor("#EFEFEF"))
-                        textSize = 13f
-                        setPadding(8, 4, 8, 4)
-                        gravity = android.view.Gravity.CENTER_VERTICAL
-                        // Fill the width so chevron is pushed to the right
-                        layoutParams?.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                        // Add chevron as compound drawable on the right
-                        val chevron = androidx.core.content.ContextCompat.getDrawable(
-                            context, R.drawable.ic_chevron_down
-                        )
-                        chevron?.setBounds(0, 0, chevron.intrinsicWidth, chevron.intrinsicHeight)
-                        setCompoundDrawablesRelative(null, null, chevron, null)
-                        compoundDrawablePadding = 4
-                    }
-                    return view
+        val b = binding ?: return
+
+        val adapter = object : android.widget.ArrayAdapter<String>(
+            this,
+            android.R.layout.simple_spinner_item,
+            keepLists.map { it.title }
+        ) {
+            // Selected view is invisible — we display the icon button instead
+            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View =
+                super.getView(position, convertView, parent).also { it.visibility = View.INVISIBLE }
+
+            override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                val view = super.getDropDownView(position, convertView, parent)
+                (view as? TextView)?.apply {
+                    val isSelected = position == b.spinnerLists.selectedItemPosition
+                    setTextColor(ContextCompat.getColor(context, R.color.widget_dropdown_text))
+                    setBackgroundColor(ContextCompat.getColor(context, R.color.widget_dropdown_bg))
+                    textSize = 14f
+                    setPadding(48, 24, 48, 24)
+                    val check = if (isSelected)
+                        ContextCompat.getDrawable(context, R.drawable.ic_check)
+                            ?.also { it.setBounds(0, 0, it.intrinsicWidth, it.intrinsicHeight) }
+                    else null
+                    setCompoundDrawablesRelative(check, null, null, null)
+                    compoundDrawablePadding = 12
                 }
-
-                override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
-                    val view = super.getDropDownView(position, convertView, parent)
-                    (view as? TextView)?.apply {
-                        setTextColor(Color.parseColor("#EFEFEF"))
-                        setBackgroundColor(Color.parseColor("#2D2D2D"))
-                        textSize = 14f
-                        setPadding(32, 24, 32, 24)
-                        setCompoundDrawables(null, null, null, null)
-                    }
-                    return view
-                }
-            }.apply {
-                setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                return view
             }
-
-            b.spinnerLists.adapter = adapter
-
-            // Restore last selected list by ID, fall back to first item
-            val lastId = settings.lastSelectedListId
-            val restoredIndex = if (lastId != null) {
-                keepLists.indexOfFirst { it.id == lastId }.takeIf { it >= 0 } ?: 0
-            } else {
-                0
-            }
-            b.spinnerLists.setSelection(restoredIndex)
+        }.apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
+
+        b.spinnerLists.adapter = adapter
+
+        // Restore last selected list by ID; fall back to first item if not found
+        val lastId = settings.lastSelectedListId
+        val restoredIndex = lastId
+            ?.let { keepLists.indexOfFirst { list -> list.id == it }.takeIf { idx -> idx >= 0 } }
+            ?: 0
+        b.spinnerLists.setSelection(restoredIndex)
+
+        // List icon button triggers the hidden spinner dropdown
+        b.btnListPicker.setOnClickListener { b.spinnerLists.performClick() }
     }
 
-    private fun setupButtons() {
-        binding?.let { b ->
-            // Send / Add button
-            b.btnAdd.setOnClickListener {
-                submitItem()
-            }
+    // --- Buttons & input ---
 
-            // Handle Done key on keyboard
-            b.etItemText.setOnEditorActionListener { _, actionId, event ->
-                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
-                    (event != null && event.keyCode == android.view.KeyEvent.KEYCODE_ENTER)) {
-                    submitItem()
-                    true
-                } else {
-                    false
-                }
-            }
+    private fun setupButtons() {
+        val b = binding ?: return
+        b.btnAdd.setOnClickListener { submitItem() }
+        b.etItemText.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_DONE ||
+                event?.keyCode == KeyEvent.KEYCODE_ENTER) {
+                submitItem(); true
+            } else false
         }
     }
 
     private fun setupOutsideTouchDismiss(params: WindowManager.LayoutParams) {
-        // FLAG_NOT_TOUCH_MODAL allows touches outside the window to be detected
         params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
         windowManager?.updateViewLayout(floatingView, params)
-
         floatingView?.setOnTouchListener { _, event ->
-            if (event.action == android.view.MotionEvent.ACTION_OUTSIDE) {
-                stopSelf()
-                true
-            } else {
-                false
-            }
+            if (event.action == MotionEvent.ACTION_OUTSIDE) { stopSelf(); true } else false
         }
     }
 
     private fun setupBackGesture() {
-        // Intercept back key press to dismiss the widget
+        val backListener = View.OnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_BACK) {
+                stopSelf(); true
+            } else false
+        }
         floatingView?.isFocusableInTouchMode = true
         floatingView?.requestFocus()
-        floatingView?.setOnKeyListener { _, keyCode, event ->
-            if (event.action == android.view.KeyEvent.ACTION_UP &&
-                keyCode == android.view.KeyEvent.KEYCODE_BACK) {
-                stopSelf()
-                true
-            } else {
-                false
-            }
-        }
-
-        // Also intercept back on the EditText
-        binding?.etItemText?.setOnKeyListener { _, keyCode, event ->
-            if (event.action == android.view.KeyEvent.ACTION_UP &&
-                keyCode == android.view.KeyEvent.KEYCODE_BACK) {
-                stopSelf()
-                true
-            } else {
-                false
-            }
-        }
+        floatingView?.setOnKeyListener(backListener)
+        binding?.etItemText?.setOnKeyListener(backListener)
     }
+
+    // --- Submit ---
 
     private fun submitItem() {
-        binding?.let { b ->
-            val itemText = b.etItemText.text.toString().trim()
-            val selectedIndex = b.spinnerLists.selectedItemPosition
-            val selectedList = keepLists.getOrNull(selectedIndex)
+        val b = binding ?: return
+        val itemText = b.etItemText.text.toString().trim()
 
-            if (itemText.isEmpty()) {
-                Toast.makeText(this, "Please enter a task name", Toast.LENGTH_SHORT).show()
-                return
-            }
+        if (itemText.isEmpty()) {
+            showToast("Please enter an item")
+            return
+        }
 
-            // Hide widget immediately
-            floatingView?.visibility = View.GONE
+        val selectedList = keepLists.getOrNull(b.spinnerLists.selectedItemPosition)
+        floatingView?.visibility = View.GONE
 
-            if (selectedList != null) {
-                // Persist the selected list ID for next time
-                settings.lastSelectedListId = selectedList.id
+        if (selectedList == null) {
+            showToast("\"$itemText\" added (no list selected)")
+            closeAfterDelay()
+            return
+        }
 
-                // Try to add via server
-                serviceScope.launch {
-                    val result = repository.addItem(selectedList.id, itemText)
-                    val message = if (result.isSuccess) {
-                        "Added \"$itemText\" to \"${selectedList.title}\""
-                    } else {
-                        "Added \"$itemText\" to \"${selectedList.title}\" (offline - sync pending)"
-                    }
-                    Toast.makeText(this@FloatingWidgetService, message, Toast.LENGTH_LONG).show()
-                    android.os.Handler(mainLooper).postDelayed({ stopSelf() }, 500)
-                }
-            } else {
-                // No list selected (still loading?)
-                Toast.makeText(this, "Added \"$itemText\" (no list selected)", Toast.LENGTH_LONG).show()
-                android.os.Handler(mainLooper).postDelayed({ stopSelf() }, 500)
-            }
+        settings.lastSelectedListId = selectedList.id
+
+        serviceScope.launch {
+            repository.addItem(selectedList.id, itemText).fold(
+                onSuccess = {
+                    showToast("Added \"$itemText\" to \"${selectedList.title}\"")
+                    closeAfterDelay()
+                },
+                onFailure = { openKeepFallback(itemText, selectedList.title) }
+            )
         }
     }
 
-    private fun removeFloatingWidget() {
-        floatingView?.let {
-            windowManager?.removeView(it)
+    private fun openKeepFallback(itemText: String, listTitle: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, "$listTitle: $itemText")
+                setPackage("com.google.android.keep")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+            showToast("Backend offline — opening Keep directly")
+        } catch (e: ActivityNotFoundException) {
+            showToast("Backend offline and Google Keep is not installed")
         }
+        closeAfterDelay()
+    }
+
+    // --- Helpers ---
+
+    private fun showToast(message: String) =
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+
+    private fun closeAfterDelay() =
+        Handler(mainLooper).postDelayed({ stopSelf() }, CLOSE_DELAY_MS)
+
+    private fun removeFloatingWidget() {
+        floatingView?.let { windowManager?.removeView(it) }
         floatingView = null
         binding = null
     }
+
 }
