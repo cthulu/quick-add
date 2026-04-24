@@ -1,46 +1,72 @@
 # Keep Quick Add
 
-A floating widget Android app for quickly adding items to Google Keep lists.
-
-## Features
-
-- **Floating Widget**: Draw-over-apps overlay that works from anywhere on your device
-- **List Selection**: Dropdown to select which Keep list to add items to
-- **Quick Input**: Text field for entering items quickly
-- **Toast Notifications**: Visual feedback when items are added
-- **Draggable Widget**: Move the widget anywhere on screen
+Quickly add items to your Google Keep lists from anywhere on your Android device using a floating widget.
 
 ## Architecture
 
-- `MainActivity`: Entry point that handles permission requests and service control
-- `FloatingWidgetService`: Foreground service that manages the floating overlay widget
-- Uses `WindowManager` with `TYPE_APPLICATION_OVERLAY` for the floating widget
+```
+keep-quick-add/
+├── android/    # Android app (floating widget)
+└── backend/    # Python proxy server (wraps gkeepapi)
+```
 
-## Permissions Required
+```
+Phone                        Your machine / home server
+┌─────────────────┐          ┌──────────────────────────┐
+│  Android App    │  HTTP    │  Python FastAPI Backend   │
+│                 │ ───────► │  (gkeepapi wrapper)      │
+│  Floating       │ ◄─────── │                          │
+│  widget UI      │  JSON    │  GET  /lists             │
+│                 │          │  POST /lists/{id}/items   │
+└─────────────────┘          └──────────┬───────────────┘
+                                        │ private API
+                                        ▼
+                              ┌──────────────────────┐
+                              │    Google Keep        │
+                              └──────────────────────┘
+```
 
-- `SYSTEM_ALERT_WINDOW`: Required to draw over other apps
-- `FOREGROUND_SERVICE`: Required to keep the widget running
-- `POST_NOTIFICATIONS`: Required for the foreground service notification
+## Modules
 
-## Building
+### `android/`
+The Android app. Open this folder in Android Studio.
 
-1. Open the project in Android Studio
-2. Sync Gradle files
-3. Build and run on an emulator or device (API 26+)
+- **Floating widget** — dark Todoist-style overlay anchored above the keyboard
+- **List dropdown** — fetched from backend, cached locally for 30 minutes
+- **Launcher shortcut** — long-press the app icon for a "Quick Add" shortcut
+- **Settings screen** — configure the backend URL from within the app
 
-## Usage
+See [`android/README.md`](android/README.md) for setup and build instructions.
 
-1. Launch the app
-2. Grant "Display over other apps" permission when prompted
-3. Tap "Start Floating Widget"
-4. The widget will appear as a floating card
-5. Select a list from the dropdown
-6. Type your item and tap "Add"
-7. A toast notification will confirm the addition
+### `backend/`
+A lightweight FastAPI server that wraps [`gkeepapi`](https://github.com/kiwiz/gkeepapi) to expose Google Keep lists via REST.
 
-## TODO
+- `GET /health` — health check
+- `GET /lists` — returns all Keep lists
+- `POST /lists/{id}/items` — adds an item to a list
+- Dockerized for easy deployment (home server, Tailscale, Cloud Run)
+- Includes a **mock server** for local testing without Google credentials
 
-- [ ] Integrate with Google Keep API for real list sync
-- [ ] Add persistent storage for offline items
-- [ ] Custom theming options
-- [ ] Quick toggle tile in notification shade
+See [`backend/README.md`](backend/README.md) for setup and deployment instructions.
+
+## Quick Start
+
+**1. Start the backend (mock mode for testing):**
+```bash
+cd backend
+python3 mock_server.py
+```
+
+**2. Open the Android app in Android Studio:**
+```
+File → Open → select the android/ folder
+```
+
+**3. Configure the backend URL in the app:**
+```
+Main screen → ⚙ Configure Backend URL → http://10.0.2.2:8000 → Test → Save
+```
+
+**4. Grant overlay permission and start the widget.**
+
+**5. Long-press the app icon to add the "Quick Add" shortcut to your home screen.**

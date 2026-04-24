@@ -5,8 +5,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,6 +29,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         repository = KeepRepository(this)
+        setSupportActionBar(binding.toolbar)
 
         setupClickListeners()
         updateUI()
@@ -41,25 +40,16 @@ class MainActivity : AppCompatActivity() {
         updateUI()
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_refresh -> {
-                refreshListsFromServer()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
-
     private fun setupClickListeners() {
         binding.btnGrantPermission.setOnClickListener { requestOverlayPermission() }
         binding.btnStartWidget.setOnClickListener { startFloatingWidget() }
         binding.btnStopWidget.setOnClickListener { stopFloatingWidget() }
+        binding.btnSettings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        binding.btnRefresh.setOnClickListener {
+            refreshListsFromServer()
+        }
     }
 
     private fun updateUI() {
@@ -80,7 +70,10 @@ class MainActivity : AppCompatActivity() {
             binding.btnStopWidget.visibility = View.GONE
         }
 
-        // Show cache age
+        updateCacheStatus()
+    }
+
+    private fun updateCacheStatus() {
         val cacheAge = repository.getCacheAge()
         binding.tvCacheStatus.text = when {
             cacheAge < 0 -> "Lists: not loaded yet"
@@ -88,30 +81,34 @@ class MainActivity : AppCompatActivity() {
             cacheAge < TimeUnit.MINUTES.toMillis(60) -> "Lists: cached ${TimeUnit.MILLISECONDS.toMinutes(cacheAge)}m ago"
             else -> "Lists: cache expired"
         }
+        // Show refresh button only when not currently refreshing
+        binding.btnRefresh.visibility = View.VISIBLE
     }
 
     private fun refreshListsFromServer() {
+        binding.btnRefresh.visibility = View.GONE
         binding.tvCacheStatus.text = "Lists: refreshing..."
+
         lifecycleScope.launch {
             val result = repository.getLists(forceRefresh = true)
             result.fold(
                 onSuccess = { lists ->
                     Toast.makeText(
                         this@MainActivity,
-                        "Loaded ${lists.size} lists from server",
+                        "Loaded ${lists.size} lists",
                         Toast.LENGTH_SHORT
                     ).show()
-                    updateUI()
                 },
                 onFailure = { error ->
                     Toast.makeText(
                         this@MainActivity,
-                        "Failed to refresh: ${error.message}",
+                        "Refresh failed: ${error.message}",
                         Toast.LENGTH_LONG
                     ).show()
-                    updateUI()
                 }
             )
+            // Always restore the button and update status when done
+            updateCacheStatus()
         }
     }
 

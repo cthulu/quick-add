@@ -3,9 +3,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/action_refresh"
-        android:title="Refresh Lists"
-        android:icon="@android:drawable/ic_menu_rotate"
-        app:showAsAction="ifRoom|withText" />
+        android:id="@+id/action_settings"
+        android:title="Settings"
+        android:icon="@android:drawable/ic_menu_preferences"
+        app:showAsAction="never" />
 
 </menu>

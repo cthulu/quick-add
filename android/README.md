@@ -1,46 +1,58 @@
-# Keep Quick Add
+# Keep Quick Add — Android App
 
 A floating widget Android app for quickly adding items to Google Keep lists.
 
+## Opening in Android Studio
+
+1. Open **Android Studio**
+2. Choose **File → Open**
+3. Navigate to and select the **`android/`** folder (this folder, not the repo root)
+4. Wait for Gradle sync to complete (downloads dependencies automatically)
+5. Create or select an emulator: **Tools → Device Manager → Create Device** (API 26+)
+6. Press **Run ▶** to build and install
+
+> ⚠️ Open the `android/` subfolder directly, not the repo root `keep-quick-add/`
+
 ## Features
 
-- **Floating Widget**: Draw-over-apps overlay that works from anywhere on your device
-- **List Selection**: Dropdown to select which Keep list to add items to
-- **Quick Input**: Text field for entering items quickly
-- **Toast Notifications**: Visual feedback when items are added
-- **Draggable Widget**: Move the widget anywhere on screen
+- **Floating Widget**: Dark Todoist-style overlay anchored above the keyboard
+- **List Selection**: Dropdown showing your Google Keep lists (fetched from backend)
+- **30-minute Cache**: Lists are cached locally, with manual refresh in the toolbar
+- **Quick Input**: Type item name, press Enter or tap send to add
+- **Launcher Shortcut**: Long-press the app icon for a "Quick Add" shortcut
+- **Dismiss**: Tap outside or press Back to close
 
 ## Architecture
 
-- `MainActivity`: Entry point that handles permission requests and service control
-- `FloatingWidgetService`: Foreground service that manages the floating overlay widget
-- Uses `WindowManager` with `TYPE_APPLICATION_OVERLAY` for the floating widget
+- `MainActivity` — Permission handling, service control, cache status + refresh
+- `FloatingWidgetService` — Foreground service managing the overlay widget
+- `KeepRepository` — Networking (OkHttp) + 30-minute SharedPreferences cache
+- `QuickAddShortcutActivity` — Transparent launcher for shortcut
+
+## Backend Configuration
+
+The app connects to the Python backend. Default URL (emulator → host machine):
+```
+http://10.0.2.2:8000
+```
+
+To use a real device or Tailscale, update `BASE_URL` in `KeepRepository.kt`:
+```kotlin
+private const val BASE_URL = "http://YOUR_IP_OR_TAILSCALE_IP:8000"
+```
 
 ## Permissions Required
 
-- `SYSTEM_ALERT_WINDOW`: Required to draw over other apps
-- `FOREGROUND_SERVICE`: Required to keep the widget running
-- `POST_NOTIFICATIONS`: Required for the foreground service notification
-
-## Building
-
-1. Open the project in Android Studio
-2. Sync Gradle files
-3. Build and run on an emulator or device (API 26+)
+- `INTERNET` — Backend API calls
+- `SYSTEM_ALERT_WINDOW` — Draw over other apps
+- `FOREGROUND_SERVICE` — Keep widget running
+- `POST_NOTIFICATIONS` — Foreground service notification
 
 ## Usage
 
-1. Launch the app
-2. Grant "Display over other apps" permission when prompted
-3. Tap "Start Floating Widget"
-4. The widget will appear as a floating card
-5. Select a list from the dropdown
-6. Type your item and tap "Add"
-7. A toast notification will confirm the addition
-
-## TODO
-
-- [ ] Integrate with Google Keep API for real list sync
-- [ ] Add persistent storage for offline items
-- [ ] Custom theming options
-- [ ] Quick toggle tile in notification shade
+1. Start the backend (`cd ../backend && docker compose up -d`)
+2. Launch the app and grant overlay permission
+3. Tap **Start Floating Widget** (or use the launcher shortcut)
+4. Select a Keep list from the dropdown
+5. Type your item → press Enter or tap the send button
+6. Toast confirms the item was added → widget closes

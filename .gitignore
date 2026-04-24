@@ -5,7 +5,7 @@ android/app/build/
 # Gradle
 .gradle/
 android/.gradle/
-android/gradle/wrapper/gradle-wrapper.jar
+# android/gradle/wrapper/gradle-wrapper.jar  # keep this tracked - needed for Android Studio
 android/local.properties
 local.properties
 
@@ -21,3 +21,6 @@ Thumbs.db
 
 # Backend secrets
 backend/.env
+
+# IntelliJ/Android Studio output
+out/

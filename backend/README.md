@@ -37,6 +37,30 @@ print(res.get('Token'))
 "
 ```
 
+### What is the Android ID?
+
+The Android ID is a 16-character hexadecimal string that uniquely identifies a (real or virtual) Android device. Google uses it as part of the device registration process when obtaining a master token.
+
+**You can use a fake/placeholder ID** (`0000000000000000`) when using an App Password — Google does not strictly validate it in that flow.
+
+If you need a real Android ID (e.g. for OAuth token flows), you can get it from:
+
+- **From a real Android device:**  
+  Install [Device ID](https://play.google.com/store/apps/details?id=com.evozi.deviceid) from the Play Store, or run via ADB:
+  ```bash
+  adb shell settings get secure android_id
+  ```
+
+- **From an emulator:**  
+  ```bash
+  adb shell settings get secure android_id
+  ```
+
+- **Generate a random valid one** (16 hex chars):
+  ```bash
+  python3 -c "import secrets; print(secrets.token_hex(8))"
+  ```
+
 ## Running with Docker Compose
 
 ```bash
@@ -62,3 +86,21 @@ export GOOGLE_EMAIL=your@gmail.com
 export GOOGLE_MASTER_TOKEN=your_token
 uvicorn main:app --reload --port 8000
 ```
+
+## Mock Server (for local testing, no credentials needed)
+
+A zero-dependency mock server is included for testing the Android app without real Google credentials.
+
+```bash
+# No pip install needed - uses Python stdlib only
+python3 mock_server.py
+```
+
+The mock server:
+- Runs on `http://localhost:8000` (same port as real server)
+- Returns 6 pre-configured mock lists (Groceries, Ideas, Inbox, etc.)
+- Accepts `POST /lists/{id}/items` and logs added items to console
+- Prints a session summary of all added items on exit (Ctrl+C)
+
+**Android emulator:** set backend URL to `http://10.0.2.2:8000` in the app's Settings screen.  
+**Real device:** set backend URL to `http://<your-machine-ip>:8000`.

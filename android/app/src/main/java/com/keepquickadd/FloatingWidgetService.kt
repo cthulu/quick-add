@@ -40,6 +40,7 @@ class FloatingWidgetService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private lateinit var repository: KeepRepository
+    private lateinit var settings: AppSettings
     private var keepLists: List<KeepList> = emptyList()
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -48,6 +49,7 @@ class FloatingWidgetService : Service() {
         super.onCreate()
         isRunning = true
         repository = KeepRepository(this)
+        settings = AppSettings(this)
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
         createFloatingWidget()
@@ -63,21 +65,38 @@ class FloatingWidgetService : Service() {
 
     private fun loadLists() {
         serviceScope.launch {
-            val result = repository.getLists(forceRefresh = false)
-            result.fold(
+            // Always load from cache first for instant display
+            val cached = repository.getLists(forceRefresh = false)
+            cached.fold(
                 onSuccess = { lists ->
                     keepLists = lists
                     setupSpinner()
                 },
-                onFailure = {
-                    // Keep the spinner empty or show a fallback
-                    Toast.makeText(
-                        this@FloatingWidgetService,
-                        "Could not load lists. Check server connection.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+                onFailure = { /* no cache yet, spinner stays empty until refresh */ }
             )
+
+            // If cache is stale (or empty), fetch from server in the background
+            if (!repository.isCacheFresh()) {
+                val fresh = repository.getLists(forceRefresh = true)
+                fresh.fold(
+                    onSuccess = { lists ->
+                        if (lists != keepLists) {
+                            keepLists = lists
+                            setupSpinner() // update spinner with fresh data
+                        }
+                    },
+                    onFailure = {
+                        if (keepLists.isEmpty()) {
+                            Toast.makeText(
+                                this@FloatingWidgetService,
+                                "Could not load lists. Check server connection.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        // Otherwise silently keep showing cached data
+                    }
+                )
+            }
         }
     }
 
@@ -156,7 +175,6 @@ class FloatingWidgetService : Service() {
     private fun setupSpinner() {
         binding?.let { b ->
             val listTitles = keepLists.map { it.title }
-            // Custom dark-themed adapter
             val adapter = object : ArrayAdapter<String>(
                 this,
                 android.R.layout.simple_spinner_item,
@@ -198,6 +216,15 @@ class FloatingWidgetService : Service() {
             }
 
             b.spinnerLists.adapter = adapter
+
+            // Restore last selected list by ID, fall back to first item
+            val lastId = settings.lastSelectedListId
+            val restoredIndex = if (lastId != null) {
+                keepLists.indexOfFirst { it.id == lastId }.takeIf { it >= 0 } ?: 0
+            } else {
+                0
+            }
+            b.spinnerLists.setSelection(restoredIndex)
         }
     }
 
@@ -277,6 +304,9 @@ class FloatingWidgetService : Service() {
             floatingView?.visibility = View.GONE
 
             if (selectedList != null) {
+                // Persist the selected list ID for next time
+                settings.lastSelectedListId = selectedList.id
+
                 // Try to add via server
                 serviceScope.launch {
                     val result = repository.addItem(selectedList.id, itemText)
