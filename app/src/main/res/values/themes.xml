@@ -26,7 +26,12 @@
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowNoTitle">true</item>
-        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
         <item name="android:windowSoftInputMode">adjustResize|stateAlwaysVisible</item>
+        <!-- No launch/exit animation — popup appears instantly like a sheet -->
+        <item name="android:windowAnimationStyle">@null</item>
+        <!-- Transparent status bar so it blends with our dim overlay -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 </resources>

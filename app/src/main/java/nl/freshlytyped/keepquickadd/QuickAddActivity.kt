@@ -1,69 +1,59 @@
 package nl.freshlytyped.keepquickadd
 
-import android.app.Activity
-import android.content.Context
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
-import android.view.Window
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.GlobalScope
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import nl.freshlytyped.keepquickadd.databinding.ActivityQuickAddBinding
 import nl.freshlytyped.keepquickadd.databinding.LayoutFloatingWidgetBinding
 
 /**
- * Transparent bottom-sheet style Activity that hosts the quick-add popup.
- * Activities (unlike overlay services) get correct soft-keyboard handling
- * for free via SOFT_INPUT_ADJUST_RESIZE.
+ * Full-screen transparent Activity that hosts the quick-add popup card at the bottom.
+ * Using a full-height window is the only reliable way to get adjustResize to push
+ * the popup above the keyboard on all Android versions including 15/16.
  */
 class QuickAddActivity : AppCompatActivity() {
 
+    // activityBinding = the full-screen wrapper; binding = the popup card inside it
+    private lateinit var activityBinding: ActivityQuickAddBinding
     private lateinit var binding: LayoutFloatingWidgetBinding
     private lateinit var settings: AppSettings
     private lateinit var repository: KeepRepository
     private var lists: List<String> = emptyList()
     private var selectedListIndex: Int = 0
 
-    private val DROP_DOWN_TEXT_COLOR = Color.parseColor("#EFEFEF")
-    private val DROP_DOWN_BG_COLOR = Color.parseColor("#1F1F1F")
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Configure window: transparent background, bottom gravity, resize on keyboard
-        requestWindowFeature(Window.FEATURE_NO_TITLE)
-        window.apply {
-            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setGravity(Gravity.BOTTOM)
-            setLayout(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.WRAP_CONTENT
-            )
-            setSoftInputMode(
-                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
-                    WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
-            )
-            // Tap outside to dismiss
-            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            attributes = attributes.apply { dimAmount = 0.4f }
-        }
+        // Full-screen window — adjustResize can actually shrink it when the keyboard
+        // appears, which pushes the bottom-gravity popup card up naturally.
+        window.setSoftInputMode(
+            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
+        )
 
-        binding = LayoutFloatingWidgetBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        activityBinding = ActivityQuickAddBinding.inflate(layoutInflater)
+        setContentView(activityBinding.root)
+
+        // Access the included layout's binding via the generated field on activityBinding.
+        binding = activityBinding.popupCard
+
+        // Tapping the dim overlay dismisses the activity.
+        activityBinding.dimOverlay.setOnClickListener { finish() }
 
         repository = KeepRepository(this)
         settings = AppSettings(this)
@@ -73,28 +63,18 @@ class QuickAddActivity : AppCompatActivity() {
         setupButtons()
 
         binding.etItemText.requestFocus()
-        // Show keyboard on launch
         binding.etItemText.post {
-            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showSoftInput(binding.etItemText, InputMethodManager.SHOW_IMPLICIT)
+            WindowCompat.getInsetsController(window, binding.etItemText)
+                .show(WindowInsetsCompat.Type.ime())
         }
-    }
 
-    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
-        // Tap outside the popup (the dim area) → dismiss.
-        // ACTION_OUTSIDE only fires for windowIsFloating but we use match_parent
-        // so we approximate by checking if the touch is outside the popup bounds.
-        if (event.action == android.view.MotionEvent.ACTION_DOWN) {
-            val popup = binding.root
-            val loc = IntArray(2)
-            popup.getLocationOnScreen(loc)
-            val x = event.rawX
-            val y = event.rawY
-            val outside = x < loc[0] || x > loc[0] + popup.width ||
-                          y < loc[1] || y > loc[1] + popup.height
-            if (outside) { finish(); return true }
+        // When the keyboard is dismissed (IME inset drops to 0), close the popup.
+        // This handles back gesture, swipe-down-to-dismiss keyboard, etc.
+        ViewCompat.setOnApplyWindowInsetsListener(activityBinding.root) { v, insets ->
+            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            if (!imeVisible) finish()
+            ViewCompat.onApplyWindowInsets(v, insets)
         }
-        return super.onTouchEvent(event)
     }
 
 
@@ -102,30 +82,9 @@ class QuickAddActivity : AppCompatActivity() {
 
     private fun setupSpinner() {
         val b = binding
-        val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, lists) {
-            override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
-                val tv = (super.getDropDownView(position, convertView, parent) as TextView).apply {
-                    setTextColor(DROP_DOWN_TEXT_COLOR)
-                    setBackgroundColor(DROP_DOWN_BG_COLOR)
-                    setPadding(48.dp(), 24.dp(), 48.dp(), 24.dp())
-                    val tick = if (position == selectedListIndex) {
-                        ContextCompat.getDrawable(this@QuickAddActivity, R.drawable.ic_check)
-                    } else null
-                    setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, tick, null)
-                    compoundDrawablePadding = 12.dp()
-                    layoutParams = android.widget.AbsListView.LayoutParams(
-                        android.widget.AbsListView.LayoutParams.MATCH_PARENT,
-                        android.widget.AbsListView.LayoutParams.WRAP_CONTENT
-                    )
-                }
-                return tv
-            }
-            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
-                // Selected view is invisible — just hidden behind the icon button
-                val tv = (super.getView(position, convertView, parent) as TextView).apply { setTextColor(Color.TRANSPARENT) }
-                return tv
-            }
-        }
+        // Simple ArrayAdapter with custom XML layout — no custom getDropDownView needed.
+        // Selected item is highlighted with a tinted background.
+        val adapter = ListDropDownAdapter(lists)
         b.spinnerLists.adapter = adapter
 
         // Restore last selection by name
@@ -146,19 +105,9 @@ class QuickAddActivity : AppCompatActivity() {
             b.btnListPicker.visibility = View.GONE
         } else {
             b.btnListPicker.visibility = View.VISIBLE
-            b.spinnerLists.dropDownWidth = measureDropDownWidth()
+            b.spinnerLists.dropDownWidth = android.view.ViewGroup.LayoutParams.WRAP_CONTENT
             b.btnListPicker.setOnClickListener { b.spinnerLists.performClick() }
         }
-    }
-
-    private fun measureDropDownWidth(): Int {
-        val paint = android.graphics.Paint().apply {
-            textSize = 14f * resources.displayMetrics.density
-        }
-        val padding = (48 + 48 + 12).dp()
-        val widest = lists.maxOfOrNull { paint.measureText(it).toInt() } ?: 0
-        val maxScreen = (resources.displayMetrics.widthPixels * 0.9).toInt()
-        return (widest + padding).coerceAtMost(maxScreen)
     }
 
     private fun Int.dp(): Int = (this * resources.displayMetrics.density).toInt()
@@ -220,5 +169,31 @@ class QuickAddActivity : AppCompatActivity() {
             visibility = View.VISIBLE
         }
         binding.root.postDelayed({ finish() }, 3400)
+    }
+
+    private inner class ListDropDownAdapter(items: List<String>) :
+        ArrayAdapter<String>(this, R.layout.item_list_dropdown, items) {
+
+        override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+            val view = super.getDropDownView(position, convertView, parent)
+            val tv = view as? android.widget.TextView
+            // Highlight selected row with primary yellow, plain background for others
+            if (position == selectedListIndex) {
+                tv?.setBackgroundColor(android.graphics.Color.parseColor("#FBBC04"))
+                tv?.setTextColor(android.graphics.Color.parseColor("#1F1F1F"))
+            } else {
+                tv?.setBackgroundColor(android.graphics.Color.parseColor("#1F1F1F"))
+                tv?.setTextColor(android.graphics.Color.parseColor("#EFEFEF"))
+            }
+            return view
+        }
+
+        override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+            // Collapsed spinner view hidden behind our icon button — make text invisible
+            val view = super.getView(position, convertView, parent)
+            val tv = view as? android.widget.TextView
+            tv?.setTextColor(android.graphics.Color.TRANSPARENT)
+            return view
+        }
     }
 }

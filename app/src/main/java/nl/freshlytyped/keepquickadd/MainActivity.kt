@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
-import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import nl.freshlytyped.keepquickadd.databinding.ActivityMainBinding
 
@@ -42,9 +41,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupClickListeners() {
-        binding.btnGrantPermission.setOnClickListener { openQuickAdd() }
         binding.btnStartWidget.setOnClickListener { openQuickAdd() }
-        binding.btnStopWidget.setOnClickListener { /* no-op */ }
         binding.btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
@@ -53,10 +50,10 @@ class MainActivity : AppCompatActivity() {
     private fun updateUI() {
         binding.tvStatus.text = "Tap to open the Quick Add popup"
         binding.tvStatus.setTextColor(getColor(R.color.on_surface_secondary))
-        binding.btnGrantPermission.visibility = View.GONE
-        binding.btnStartWidget.visibility = View.VISIBLE
+        binding.btnGrantPermission.visibility = android.view.View.GONE
+        binding.btnStartWidget.visibility = android.view.View.VISIBLE
         binding.btnStartWidget.text = "Open Quick Add"
-        binding.btnStopWidget.visibility = View.GONE
+        binding.btnStopWidget.visibility = android.view.View.GONE
     }
 
     private fun openQuickAdd() {

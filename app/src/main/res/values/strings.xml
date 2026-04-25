@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Keep Quick Add</string>
-    <string name="notification_channel_name">Floating Widget</string>
-    <string name="notification_channel_description">Shows when the floating widget is active</string>
-    <string name="notification_title">Keep Quick Add</string>
-    <string name="notification_text">Tap to open widget</string>
     <string name="hint_enter_item">Enter item to add...</string>
     <string name="btn_add">Add</string>
     <string name="select_list">Select list</string>
