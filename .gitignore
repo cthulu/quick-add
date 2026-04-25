@@ -1,12 +1,9 @@
 # Android build output
-android/build/
-android/app/build/
+build/
+app/build/
 
 # Gradle
 .gradle/
-android/.gradle/
-# android/gradle/wrapper/gradle-wrapper.jar  # keep this tracked - needed for Android Studio
-android/local.properties
 local.properties
 
 # IDE
@@ -18,9 +15,6 @@ local.properties
 # OS
 .DS_Store
 Thumbs.db
-
-# Backend secrets
-backend/.env
 
 # IntelliJ/Android Studio output
 out/
