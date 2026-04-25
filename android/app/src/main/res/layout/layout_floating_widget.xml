@@ -5,8 +5,25 @@
     android:orientation="vertical"
     android:background="@drawable/widget_background">
 
-    <!-- Single row: text input + list icon + send button -->
+    <!-- Confirmation message shown briefly after successful add -->
+    <TextView
+        android:id="@+id/tvConfirmation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="20dp"
+        android:text="✓ Added!"
+        android:textColor="@color/primary"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:visibility="gone" />
+
+    <!-- Input row: text input + list icon + send button -->
     <LinearLayout
+        android:id="@+id/layoutInput"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"

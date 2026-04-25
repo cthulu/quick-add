@@ -36,13 +36,9 @@ def get_keep() -> gkeepapi.Keep:
 
 # --- Models ---
 
-class KeepList(BaseModel):
-    id: str
-    title: str
-
-
 class AddItemRequest(BaseModel):
     text: str
+    list_name: str
 
 
 # --- Endpoints ---
@@ -52,28 +48,23 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/lists", response_model=list[KeepList])
-def get_lists():
-    """Return all Google Keep lists (notes of type List)."""
+@app.post("/items", status_code=201)
+def add_item(request: AddItemRequest):
+    """Add an item to a Keep list identified by name."""
     k = get_keep()
     k.sync()
-    lists = [
-        KeepList(id=node.id, title=node.title or "(Untitled)")
-        for node in k.all()
-        if isinstance(node, gkeepapi.node.List) and not node.trashed and not node.archived
-    ]
-    lists.sort(key=lambda x: x.title.lower())
-    return lists
 
-
-@app.post("/lists/{list_id}/items", status_code=201)
-def add_item(list_id: str, request: AddItemRequest):
-    """Add an item to an existing Keep list."""
-    k = get_keep()
-    # Find the list by ID
-    node = next((n for n in k.all() if n.id == list_id and isinstance(n, gkeepapi.node.List)), None)
+    # Find the list by title (case-insensitive)
+    node = next(
+        (n for n in k.all()
+         if isinstance(n, gkeepapi.node.List)
+         and not n.trashed
+         and not n.archived
+         and n.title.lower() == request.list_name.lower()),
+        None
+    )
     if node is None:
-        raise HTTPException(status_code=404, detail=f"List '{list_id}' not found")
+        raise HTTPException(status_code=404, detail=f"List '{request.list_name}' not found")
 
     node.add(request.text, False)  # False = not checked
     k.sync()

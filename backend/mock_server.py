@@ -18,14 +18,13 @@ PORT = 8000
 
 # --- Mock data ---
 MOCK_LISTS = [
-    {"id": "list-001", "title": "Groceries"},
+    {"id": "list-001", "title": "Shopping"},
     {"id": "list-003", "title": "Inbox"},
-    {"id": "list-004", "title": "Shopping List"},
     {"id": "list-005", "title": "Todo"},
 ]
 
-# In-memory store of added items: {list_id: [item_text, ...]}
-ADDED_ITEMS: dict[str, list[str]] = {lst["id"]: [] for lst in MOCK_LISTS}
+# In-memory store of added items: {list_title: [item_text, ...]}
+ADDED_ITEMS: dict[str, list[str]] = {lst["title"]: [] for lst in MOCK_LISTS}
 
 
 class MockHandler(BaseHTTPRequestHandler):
@@ -52,41 +51,36 @@ class MockHandler(BaseHTTPRequestHandler):
 
         if path == "/health":
             self.send_json(200, {"status": "ok", "mode": "mock"})
-
-        elif path == "/lists":
-            self.send_json(200, MOCK_LISTS)
-            log.info(f"Returned {len(MOCK_LISTS)} mock lists")
-
-        elif path.startswith("/lists/") and path.endswith("/items"):
-            list_id = path.split("/")[2]
-            items = ADDED_ITEMS.get(list_id, [])
-            self.send_json(200, [{"text": t} for t in items])
-
         else:
             self.send_json(404, {"detail": f"Not found: {path}"})
 
     def do_POST(self):
         path = urlparse(self.path).path
 
-        # POST /lists/{list_id}/items
-        parts = path.strip("/").split("/")
-        if len(parts) == 3 and parts[0] == "lists" and parts[2] == "items":
-            list_id = parts[1]
-
-            # Find the list
-            lst = next((l for l in MOCK_LISTS if l["id"] == list_id), None)
-            if lst is None:
-                self.send_json(404, {"detail": f"List '{list_id}' not found"})
-                return
-
+        # POST /items
+        if path == "/items":
             body = self.read_json_body()
             text = body.get("text", "").strip()
+            list_name = body.get("list_name", "").strip()
+
             if not text:
                 self.send_json(400, {"detail": "text field is required"})
                 return
+            if not list_name:
+                self.send_json(400, {"detail": "list_name field is required"})
+                return
 
-            ADDED_ITEMS[list_id].append(text)
-            log.info(f"✓ Added '{text}' to '{lst['title']}' (total: {len(ADDED_ITEMS[list_id])} items)")
+            # Find the list by name (case-insensitive)
+            lst = next(
+                (l for l in MOCK_LISTS if l["title"].lower() == list_name.lower()),
+                None
+            )
+            if lst is None:
+                self.send_json(404, {"detail": f"List '{list_name}' not found"})
+                return
+
+            ADDED_ITEMS[lst["title"]].append(text)
+            log.info(f"✓ Added '{text}' to '{lst['title']}' (total: {len(ADDED_ITEMS[lst['title']])} items)")
             self.send_json(201, {"message": f"Added '{text}' to '{lst['title']}'"})
 
         else:
@@ -111,7 +105,7 @@ def main():
         log.info("\n🔴 Mock server stopped.")
         log.info("\nItems added during this session:")
         for lst in MOCK_LISTS:
-            items = ADDED_ITEMS[lst["id"]]
+            items = ADDED_ITEMS[lst["title"]]
             if items:
                 log.info(f"  {lst['title']}: {items}")
 

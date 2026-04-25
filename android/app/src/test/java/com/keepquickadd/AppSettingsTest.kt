@@ -19,11 +19,12 @@ class AppSettingsTest {
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        // Use a fresh prefs instance per test by clearing it
         context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
             .edit().clear().commit()
         settings = AppSettings(context)
     }
+
+    // --- backendUrl ---
 
     @Test
     fun `backendUrl returns default when not set`() {
@@ -53,21 +54,66 @@ class AppSettingsTest {
         assertTrue(settings.isConfigured())
     }
 
+    // --- lastSelectedListName ---
+
     @Test
-    fun `lastSelectedListId is null when not set`() {
-        assertNull(settings.lastSelectedListId)
+    fun `lastSelectedListName is null when not set`() {
+        assertNull(settings.lastSelectedListName)
     }
 
     @Test
-    fun `lastSelectedListId persists saved value`() {
-        settings.lastSelectedListId = "list-001"
-        assertEquals("list-001", settings.lastSelectedListId)
+    fun `lastSelectedListName persists saved value`() {
+        settings.lastSelectedListName = "Groceries"
+        assertEquals("Groceries", settings.lastSelectedListName)
     }
 
     @Test
-    fun `lastSelectedListId can be overwritten`() {
-        settings.lastSelectedListId = "list-001"
-        settings.lastSelectedListId = "list-002"
-        assertEquals("list-002", settings.lastSelectedListId)
+    fun `lastSelectedListName can be overwritten`() {
+        settings.lastSelectedListName = "Groceries"
+        settings.lastSelectedListName = "Todo"
+        assertEquals("Todo", settings.lastSelectedListName)
+    }
+
+    // --- getLists / saveLists ---
+
+    @Test
+    fun `getLists returns default list when none configured`() {
+        val lists = settings.getLists()
+        assertEquals(1, lists.size)
+        assertEquals(AppSettings.DEFAULT_LIST_NAME, lists[0])
+    }
+
+    @Test
+    fun `saveLists and getLists roundtrips correctly`() {
+        settings.saveLists(listOf("Groceries", "Todo", "Ideas"))
+        val lists = settings.getLists()
+        assertEquals(3, lists.size)
+        assertEquals("Groceries", lists[0])
+        assertEquals("Todo", lists[1])
+        assertEquals("Ideas", lists[2])
+    }
+
+    @Test
+    fun `saveLists keeps first entry even if blank`() {
+        settings.saveLists(listOf("", "Todo"))
+        val lists = settings.getLists()
+        assertEquals(AppSettings.DEFAULT_LIST_NAME, lists[0])
+    }
+
+    @Test
+    fun `saveLists removes blank entries after first`() {
+        settings.saveLists(listOf("Groceries", "", "Ideas", ""))
+        val lists = settings.getLists()
+        assertEquals(2, lists.size)
+        assertEquals("Groceries", lists[0])
+        assertEquals("Ideas", lists[1])
+    }
+
+    @Test
+    fun `saveLists always has at least one entry`() {
+        settings.saveLists(emptyList())
+        val lists = settings.getLists()
+        assertEquals(1, lists.size)
+        assertEquals(AppSettings.DEFAULT_LIST_NAME, lists[0])
     }
 }

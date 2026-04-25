@@ -8,7 +8,6 @@
     android:background="@color/surface"
     tools:context=".MainActivity">
 
-    <!-- Toolbar -->
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
@@ -18,7 +17,6 @@
         app:titleTextColor="@color/black"
         app:subtitleTextColor="@color/black" />
 
-    <!-- Content -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -43,7 +41,7 @@
             android:gravity="center"
             android:text="Quickly add items to your Google Keep lists\nfrom anywhere on your device"
             android:textSize="14sp"
-            android:textColor="@color/gray"
+            android:textColor="@color/on_surface_secondary"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/ivLogo" />
@@ -55,43 +53,10 @@
             android:layout_marginTop="24dp"
             android:text="Permission Status: Checking..."
             android:textSize="14sp"
-            android:textColor="@color/gray"
+            android:textColor="@color/on_surface_secondary"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/tvDescription" />
-
-        <LinearLayout
-            android:id="@+id/layoutCacheStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvStatus">
-
-            <TextView
-                android:id="@+id/tvCacheStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Lists: not loaded yet"
-                android:textSize="12sp"
-                android:textColor="@color/gray" />
-
-            <ImageButton
-                android:id="@+id/btnRefresh"
-                android:layout_width="18dp"
-                android:layout_height="18dp"
-                android:layout_marginStart="4dp"
-                android:background="@android:color/transparent"
-                android:src="@android:drawable/ic_menu_rotate"
-                android:contentDescription="Refresh lists"
-                app:tint="@color/gray"
-                android:padding="0dp"
-                android:scaleType="fitCenter" />
-
-        </LinearLayout>
 
         <Button
             android:id="@+id/btnGrantPermission"
@@ -104,7 +69,7 @@
             android:visibility="gone"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/layoutCacheStatus" />
+            app:layout_constraintTop_toBottomOf="@id/tvStatus" />
 
         <Button
             android:id="@+id/btnStartWidget"
@@ -113,11 +78,11 @@
             android:layout_marginTop="16dp"
             android:text="Start Floating Widget"
             android:backgroundTint="@color/primary"
-            android:textColor="@color/on_surface"
+            android:textColor="@color/black"
             android:visibility="gone"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/layoutCacheStatus" />
+            app:layout_constraintTop_toBottomOf="@id/tvStatus" />
 
         <Button
             android:id="@+id/btnStopWidget"
@@ -137,7 +102,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="⚙ Configure Backend URL"
+            android:text="⚙ Configure Backend &amp; Lists"
             android:backgroundTint="@color/surface_variant"
             android:textColor="@color/on_surface"
             app:layout_constraintEnd_toEndOf="parent"

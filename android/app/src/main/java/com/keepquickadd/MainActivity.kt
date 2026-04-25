@@ -5,19 +5,17 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
 import com.keepquickadd.databinding.ActivityMainBinding
-import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var repository: KeepRepository
 
     private val overlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -27,10 +25,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
-        repository = KeepRepository(this)
         setSupportActionBar(binding.toolbar)
-
         setupClickListeners()
         updateUI()
     }
@@ -40,15 +35,27 @@ class MainActivity : AppCompatActivity() {
         updateUI()
     }
 
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_settings -> {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
     private fun setupClickListeners() {
         binding.btnGrantPermission.setOnClickListener { requestOverlayPermission() }
         binding.btnStartWidget.setOnClickListener { startFloatingWidget() }
         binding.btnStopWidget.setOnClickListener { stopFloatingWidget() }
         binding.btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
-        }
-        binding.btnRefresh.setOnClickListener {
-            refreshListsFromServer()
         }
     }
 
@@ -69,55 +76,12 @@ class MainActivity : AppCompatActivity() {
             binding.btnStartWidget.visibility = View.GONE
             binding.btnStopWidget.visibility = View.GONE
         }
-
-        updateCacheStatus()
-    }
-
-    private fun updateCacheStatus() {
-        val cacheAge = repository.getCacheAge()
-        binding.tvCacheStatus.text = when {
-            cacheAge < 0 -> "Lists: not loaded yet"
-            cacheAge < TimeUnit.MINUTES.toMillis(1) -> "Lists: cached just now"
-            cacheAge < TimeUnit.MINUTES.toMillis(60) -> "Lists: cached ${TimeUnit.MILLISECONDS.toMinutes(cacheAge)}m ago"
-            else -> "Lists: cache expired"
-        }
-        // Show refresh button only when not currently refreshing
-        binding.btnRefresh.visibility = View.VISIBLE
-    }
-
-    private fun refreshListsFromServer() {
-        binding.btnRefresh.visibility = View.GONE
-        binding.tvCacheStatus.text = "Lists: refreshing..."
-
-        lifecycleScope.launch {
-            val result = repository.getLists(forceRefresh = true)
-            result.fold(
-                onSuccess = { lists ->
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Loaded ${lists.size} lists",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                },
-                onFailure = { error ->
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Refresh failed: ${error.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            )
-            // Always restore the button and update status when done
-            updateCacheStatus()
-        }
     }
 
     private fun requestOverlayPermission() {
-        val intent = Intent(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:$packageName")
+        overlayPermissionLauncher.launch(
+            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
         )
-        overlayPermissionLauncher.launch(intent)
     }
 
     private fun startFloatingWidget() {
@@ -126,11 +90,8 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val intent = Intent(this, FloatingWidgetService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+        else startService(intent)
         updateUI()
         moveTaskToBack(true)
     }

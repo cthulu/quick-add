@@ -18,6 +18,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.widget.ArrayAdapter
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -25,6 +26,7 @@ import androidx.core.content.ContextCompat
 import com.keepquickadd.databinding.LayoutFloatingWidgetBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -34,9 +36,7 @@ class FloatingWidgetService : Service() {
     companion object {
         const val NOTIFICATION_ID = 1001
         const val CHANNEL_ID = "floating_widget_channel"
-        private const val CLOSE_DELAY_MS = 500L
-        // Colors resolved at runtime from theme (supports light/dark mode)
-        // See res/values/widget_colors.xml and res/values-night/widget_colors.xml
+        private const val CLOSE_DELAY_MS = 850L
 
         var isRunning = false
             private set
@@ -49,7 +49,8 @@ class FloatingWidgetService : Service() {
 
     private lateinit var repository: KeepRepository
     private lateinit var settings: AppSettings
-    private var keepLists: List<KeepList> = emptyList()
+    private var lists: List<String> = emptyList()
+    private var selectedListIndex: Int = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -58,10 +59,10 @@ class FloatingWidgetService : Service() {
         isRunning = true
         repository = KeepRepository(this)
         settings = AppSettings(this)
+        lists = settings.getLists()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
         createFloatingWidget()
-        loadLists()
     }
 
     override fun onDestroy() {
@@ -69,35 +70,6 @@ class FloatingWidgetService : Service() {
         isRunning = false
         serviceScope.cancel()
         removeFloatingWidget()
-    }
-
-    // --- List loading ---
-
-    private fun loadLists() {
-        serviceScope.launch {
-            // Show cached data immediately for instant display
-            repository.getLists(forceRefresh = false).onSuccess { lists ->
-                keepLists = lists
-                setupSpinner()
-            }
-
-            // Fetch fresh data in background if cache is stale
-            if (!repository.isCacheFresh()) {
-                repository.getLists(forceRefresh = true).fold(
-                    onSuccess = { lists ->
-                        if (lists != keepLists) {
-                            keepLists = lists
-                            setupSpinner()
-                        }
-                    },
-                    onFailure = {
-                        if (keepLists.isEmpty()) {
-                            showToast("Could not load lists. Check server connection.")
-                        }
-                    }
-                )
-            }
-        }
     }
 
     // --- Notification ---
@@ -137,7 +109,6 @@ class FloatingWidgetService : Service() {
 
     private fun createFloatingWidget() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-
         binding = LayoutFloatingWidgetBinding.inflate(LayoutInflater.from(this))
         floatingView = binding?.root
 
@@ -159,12 +130,10 @@ class FloatingWidgetService : Service() {
         }
 
         windowManager?.addView(floatingView, params)
-
         setupSpinner()
         setupButtons()
         setupOutsideTouchDismiss(params)
         setupBackGesture()
-
         binding?.etItemText?.requestFocus()
     }
 
@@ -173,12 +142,12 @@ class FloatingWidgetService : Service() {
     private fun setupSpinner() {
         val b = binding ?: return
 
-        val adapter = object : android.widget.ArrayAdapter<String>(
+        val adapter = object : ArrayAdapter<String>(
             this,
             android.R.layout.simple_spinner_item,
-            keepLists.map { it.title }
+            lists
         ) {
-            // Selected view is invisible — we display the icon button instead
+            // Selected view is invisible — icon button is shown instead
             override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View =
                 super.getView(position, convertView, parent).also { it.visibility = View.INVISIBLE }
 
@@ -205,16 +174,44 @@ class FloatingWidgetService : Service() {
 
         b.spinnerLists.adapter = adapter
 
-        // Restore last selected list by ID; fall back to first item if not found
-        val lastId = settings.lastSelectedListId
-        val restoredIndex = lastId
-            ?.let { keepLists.indexOfFirst { list -> list.id == it }.takeIf { idx -> idx >= 0 } }
+        // Restore last selected list by name; fall back to first item
+        val lastName = settings.lastSelectedListName
+        val restoredIndex = lastName
+            ?.let { name -> lists.indexOfFirst { it == name }.takeIf { it >= 0 } }
             ?: 0
         b.spinnerLists.setSelection(restoredIndex)
+        selectedListIndex = restoredIndex
 
-        // List icon button triggers the hidden spinner dropdown
-        b.btnListPicker.setOnClickListener { b.spinnerLists.performClick() }
+        // Track selection changes explicitly since spinner view is invisible
+        b.spinnerLists.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                selectedListIndex = position
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+
+        // Hide list picker button when there is only one list
+        if (lists.size <= 1) {
+            b.btnListPicker.visibility = View.GONE
+        } else {
+            b.btnListPicker.visibility = View.VISIBLE
+            b.spinnerLists.dropDownWidth = measureDropDownWidth()
+            b.btnListPicker.setOnClickListener { b.spinnerLists.performClick() }
+        }
     }
+
+    private fun measureDropDownWidth(): Int {
+        val paint = android.graphics.Paint().apply {
+            textSize = 14f * resources.displayMetrics.scaledDensity
+        }
+        val padding = (48 + 48 + 12).dpToPx()
+        val widest = lists.maxOfOrNull { paint.measureText(it).toInt() } ?: 0
+        val maxScreen = (resources.displayMetrics.widthPixels * 0.9).toInt()
+        return (widest + padding).coerceAtMost(maxScreen)
+    }
+
+    private fun Int.dpToPx(): Int =
+        (this * resources.displayMetrics.density).toInt()
 
     // --- Buttons & input ---
 
@@ -260,33 +257,35 @@ class FloatingWidgetService : Service() {
             return
         }
 
-        val selectedList = keepLists.getOrNull(b.spinnerLists.selectedItemPosition)
-        floatingView?.visibility = View.GONE
+        val selectedList = lists.getOrNull(selectedListIndex)
 
         if (selectedList == null) {
-            showToast("\"$itemText\" added (no list selected)")
+            floatingView?.visibility = View.GONE
             closeAfterDelay()
             return
         }
 
-        settings.lastSelectedListId = selectedList.id
+        settings.lastSelectedListName = selectedList
 
-        serviceScope.launch {
-            repository.addItem(selectedList.id, itemText).fold(
-                onSuccess = {
-                    showToast("Added \"$itemText\" to \"${selectedList.title}\"")
-                    closeAfterDelay()
-                },
-                onFailure = { openKeepFallback(itemText, selectedList.title) }
-            )
+        // Use GlobalScope so coroutine survives stopSelf() → serviceScope.cancel()
+        @Suppress("OPT_IN_USAGE")
+        GlobalScope.launch(Dispatchers.Main) {
+            val result = repository.addItem(selectedList, itemText)
+            if (result.isSuccess) {
+                showConfirmation("✓ Added to \"$selectedList\"")
+            } else {
+                val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                android.util.Log.e("FloatingWidget", "addItem failed: $error")
+                showError("✗ $error")
+            }
         }
     }
 
-    private fun openKeepFallback(itemText: String, listTitle: String) {
+    private fun openKeepFallback(itemText: String, listName: String) {
         try {
             startActivity(Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, "$listTitle: $itemText")
+                putExtra(Intent.EXTRA_TEXT, "$listName: $itemText")
                 setPackage("com.google.android.keep")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             })
@@ -294,13 +293,35 @@ class FloatingWidgetService : Service() {
         } catch (e: ActivityNotFoundException) {
             showToast("Backend offline and Google Keep is not installed")
         }
+        floatingView?.visibility = View.GONE
         closeAfterDelay()
     }
 
     // --- Helpers ---
 
     private fun showToast(message: String) =
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+
+    private fun showConfirmation(message: String) {
+        binding?.layoutInput?.visibility = View.GONE
+        binding?.tvConfirmation?.apply {
+            text = message
+            setTextColor(ContextCompat.getColor(this@FloatingWidgetService, R.color.primary))
+            visibility = View.VISIBLE
+        }
+        Handler(mainLooper).postDelayed({ stopSelf() }, CLOSE_DELAY_MS)
+    }
+
+    private fun showError(message: String) {
+        binding?.layoutInput?.visibility = View.GONE
+        binding?.tvConfirmation?.apply {
+            text = message
+            setTextColor(android.graphics.Color.parseColor("#D32F2F"))
+            visibility = View.VISIBLE
+        }
+        // Keep error visible longer, then close
+        Handler(mainLooper).postDelayed({ stopSelf() }, CLOSE_DELAY_MS * 4)
+    }
 
     private fun closeAfterDelay() =
         Handler(mainLooper).postDelayed({ stopSelf() }, CLOSE_DELAY_MS)
@@ -310,5 +331,4 @@ class FloatingWidgetService : Service() {
         floatingView = null
         binding = null
     }
-
 }
