@@ -1,4 +1,4 @@
-# Keep Quick Add
+# Quick Add
 
 Quickly add items to your Google Keep lists from anywhere on your Android device using a floating widget.
 The app publishes "add X to list Y" messages to **PubNub**, where any subscribing client (e.g. a server-side
@@ -26,7 +26,7 @@ Phone                                    PubNub Cloud
 ## Project layout
 
 ```
-keep-quick-add/
+quick-add/
 ├── app/                  # Android application module
 ├── mock-server/          # Local mock of PubNub publish endpoint
 ├── build.gradle.kts      # Root Gradle build
@@ -48,15 +48,10 @@ keep-quick-add/
 
 ## Building & running the Android app
 
-1. Open the project root (`keep-quick-add/`) in **Android Studio**
+1. Open the project root (`quick-add/`) in **Android Studio**
 2. Let Gradle sync and download dependencies
-3. Run on a device or emulator (minSdk 26, targetSdk 34)
+3. Run on a device or emulator (minSdk 26, targetSdk 36)
 
-### Running tests
-
-```bash
-./gradlew testDebugUnitTest
-```
 
 ## PubNub setup
 
@@ -65,7 +60,7 @@ keep-quick-add/
    - **Publish key** — `pub-c-...` from PubNub Admin Portal
    - **Subscribe key** — `sub-c-...` from PubNub Admin Portal
    - **API key** *(optional)* — sent as the `x-api-key` HTTP header
-   - **Channel** — defaults to `keep-quick-add`
+   - **Channel** — defaults to `quick-add`
    - **List names** — first entry is required, additional ones can be added/removed
 3. Tap **Test Connection** → **Save**
 4. Tap the floating widget → type an item → press send
