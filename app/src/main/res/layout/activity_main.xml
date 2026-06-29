@@ -13,9 +13,9 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="@color/primary"
-        app:title="Keep Quick Add"
-        app:titleTextColor="@color/black"
-        app:subtitleTextColor="@color/black" />
+        app:subtitleTextColor="@color/black"
+        app:title="Quick Add"
+        app:titleTextColor="@color/black" />
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
@@ -39,9 +39,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:gravity="center"
-            android:text="Quickly add items to your Google Keep lists\nfrom anywhere on your device"
-            android:textSize="14sp"
+            android:text="Quickly add items to your Google Keep lists\nfrom anywhere on your device."
             android:textColor="@color/on_surface_secondary"
+            android:textSize="14sp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/ivLogo" />

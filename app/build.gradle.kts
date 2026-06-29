@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "nl.freshlytyped.keepquickadd"
-    compileSdk = 36
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "nl.freshlytyped.keepquickadd"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
     }

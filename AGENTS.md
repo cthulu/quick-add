@@ -13,6 +13,7 @@ Quick Add is an Android app that:
 - Keep the methods concise
 - Focus on single responsibility of a method and class
 - Avoid adding unnecessary comments
+- Make sure you optimize the imports
 
 # Error handling and logging
 - Handle and test error handling in case of connection errors
