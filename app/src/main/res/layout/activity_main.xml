@@ -98,6 +98,18 @@
             app:layout_constraintTop_toBottomOf="@id/btnStartWidget" />
 
         <Button
+            android:id="@+id/btnCalendarQuickAdd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Open Calendar Quick Add"
+            android:backgroundTint="@color/primary"
+            android:textColor="@color/black"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/btnStopWidget" />
+
+        <Button
             android:id="@+id/btnSettings"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -107,7 +119,7 @@
             android:textColor="@color/on_surface"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/btnStopWidget" />
+            app:layout_constraintTop_toBottomOf="@id/btnCalendarQuickAdd" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

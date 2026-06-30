@@ -56,6 +56,16 @@
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize|stateAlwaysVisible" />
 
+        <!-- Bottom-sheet style activity hosting the calendar quick-add popup -->
+        <activity
+            android:name=".calendar.CalendarQuickAddActivity"
+            android:exported="false"
+            android:theme="@style/Theme.QuickAddDialog"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize|stateAlwaysVisible" />
+
     </application>
 
 </manifest>

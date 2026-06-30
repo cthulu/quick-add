@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
+import nl.freshlytyped.keepquickadd.calendar.CalendarQuickAddActivity
 import nl.freshlytyped.keepquickadd.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -42,6 +43,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupClickListeners() {
         binding.btnStartWidget.setOnClickListener { openQuickAdd() }
+        binding.btnCalendarQuickAdd.setOnClickListener { openCalendarQuickAdd() }
         binding.btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
@@ -58,5 +60,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun openQuickAdd() {
         startActivity(Intent(this, QuickAddActivity::class.java))
+    }
+
+    private fun openCalendarQuickAdd() {
+        startActivity(Intent(this, CalendarQuickAddActivity::class.java))
     }
 }
