@@ -4,7 +4,6 @@ import android.graphics.Color
 import android.os.Bundle
 import android.text.Editable
 import android.text.SpannableStringBuilder
-import android.text.style.BackgroundColorSpan
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.Toast
@@ -106,13 +105,14 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
         val spannable = SpannableStringBuilder(input)
         val highlightColor = ContextCompat.getColor(this, R.color.date_highlight)
+        val textColor = editText.currentTextColor
 
         for (range in result.matchedRanges) {
             val safeStart = range.first.coerceAtLeast(0).coerceAtMost(input.length)
             val safeEnd = range.last.coerceAtLeast(0).coerceAtMost(input.length)
             if (safeStart < safeEnd) {
                 spannable.setSpan(
-                    BackgroundColorSpan(highlightColor),
+                    RoundedBackgroundSpan(highlightColor, textColor),
                     safeStart,
                     safeEnd,
                     android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
