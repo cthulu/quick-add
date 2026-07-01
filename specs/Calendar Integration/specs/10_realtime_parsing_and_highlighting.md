@@ -31,13 +31,6 @@ Highlight style:
 - Ensure text remains readable (contrast checked).
 - Preserve cursor position and editing experience.
 
-### Parse Feedback UI
-Under input field, show a status line:
-- `NONE`: "No date/time detected"
-- `PARTIAL`: "Date/time detected, keep typing..."
-- `RESOLVED`: formatted datetime preview, e.g. "Sat, Jul 4, 3:00 PM"
-- `ERROR`: "Couldn't parse date/time"
-
 ### Range Integrity
 - Ranges must map to original user-visible input.
 - If normalization changes text length, keep index mapping from normalized string back to raw text.

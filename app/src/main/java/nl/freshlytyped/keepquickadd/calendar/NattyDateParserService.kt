@@ -34,7 +34,7 @@ class NattyDateParserService(
 
             val primaryDateGroup = dateGroups.first()
             val matchedText = primaryDateGroup.text.trim()
-            val matchedRanges = extractMatchedRanges(input, matchedText, normalizedInput.text)
+            val matchedRanges = mapNormalizedRangesToOriginal(input, matchedText, normalizedInput)
 
             // Extract start and end dates from the DateGroup
             // Default duration: 1 hour if no end time provided
@@ -84,30 +84,28 @@ class NattyDateParserService(
     }
 
     /**
-     * Extract matched text ranges from the original input.
-     * Finds the position of matched text in the original (non-normalized) input.
+     * Map matched ranges from normalized text back to original input positions
+     * using the replacement tracking from InputNormalizer.
      */
-    private fun extractMatchedRanges(original: String, matchedText: String, normalized: String): List<IntRange> {
+    private fun mapNormalizedRangesToOriginal(
+        original: String,
+        matchedText: String,
+        normalizedInput: InputNormalizer.NormalizedInput
+    ): List<IntRange> {
         if (matchedText.isEmpty()) {
             return emptyList()
         }
 
-        // First try to find matched text in the original input
-        val originalIndex = original.indexOf(matchedText, ignoreCase = true)
-        if (originalIndex >= 0) {
-            val endIndex = (originalIndex + matchedText.length).coerceAtMost(original.length)
-            return listOf(originalIndex until endIndex)
+        // Find the matched text position in the normalized string
+        val normIndex = normalizedInput.text.indexOf(matchedText, ignoreCase = true)
+        if (normIndex < 0) {
+            return emptyList()
         }
 
-        // Fallback: search in normalized input
-        val normalizedIndex = normalized.indexOf(matchedText, ignoreCase = true)
-        if (normalizedIndex >= 0) {
-            val endIndex = (normalizedIndex + matchedText.length).coerceAtMost(normalized.length)
-            return listOf(normalizedIndex until endIndex)
-        }
+        val normEnd = (normIndex + matchedText.length).coerceAtMost(normalizedInput.text.length)
 
-        // If exact match not found, return empty list
-        return emptyList()
+        // Use the normalizer's mapping to convert back to original
+        return normalizedInput.mapToOriginal(normIndex, normEnd)
     }
 
     /**

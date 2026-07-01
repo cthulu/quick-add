@@ -156,4 +156,24 @@ class InputNormalizerTest {
         val result = normalizer.normalize("Team sync tomm at 10am in conference room")
         assertEquals("Team sync tomorrow at 10 am in conference room", result.text)
     }
+
+    @Test
+    fun testNormalize3p() {
+        val result = normalizer.normalize("3p")
+        assertEquals("3 pm", result.text)
+    }
+
+    @Test
+    fun testNormalizeWed() {
+        val result = normalizer.normalize("wed")
+        assertEquals("wed should expand to wednesday", "wednesday", result.text)
+        assertEquals("Should have 1 replacement", 1, result.replacements.size)
+    }
+
+    @Test
+    fun testNormalizeTeamLunch3pOnWed() {
+        val result = normalizer.normalize("team lunch 3p on wed")
+        assertEquals("team lunch 3 pm on wednesday", result.text)
+        assertEquals("Should have 2 replacements (3p and wed)", 2, result.replacements.size)
+    }
 }

@@ -1,10 +1,5 @@
 package nl.freshlytyped.keepquickadd.calendar
 
-/**
- * Preprocesses user input to normalize shorthand, typos, and spacing
- * before feeding to the date parser. Maintains a mapping of original
- * text spans to normalized spans for accurate range reporting.
- */
 class InputNormalizer {
 
     private val aliasMap = mapOf(
@@ -61,47 +56,92 @@ class InputNormalizer {
         "12pm" to "12 pm"
     )
 
-    data class NormalizedInput(
-        val text: String,
-        val originalToNormalizedMap: Map<Int, Int> = emptyMap()
+    data class Replacement(
+        val originalStart: Int,
+        val originalEnd: Int,
+        val normalizedStart: Int,
+        val normalizedEnd: Int
     )
 
-    /**
-     * Normalize input text by:
-     * 1. Trimming leading/trailing whitespace
-     * 2. Reducing repeated spaces to single space
-     * 3. Applying alias replacements (tomm -> tomorrow, etc.)
-     * 4. Tracking character-level mapping from original to normalized text
-     */
+    data class NormalizedInput(
+        val text: String,
+        val replacements: List<Replacement> = emptyList()
+    ) {
+        fun mapToOriginal(normStart: Int, normEnd: Int): List<IntRange> {
+            val result = mutableListOf<IntRange>()
+
+            for (rep in replacements) {
+                val overlaps = normStart < rep.normalizedEnd && normEnd > rep.normalizedStart
+                if (overlaps) {
+                    result.add(rep.originalStart until rep.originalEnd)
+                }
+            }
+
+            if (result.isEmpty()) {
+                result.add(normStart until normEnd)
+            }
+
+            return result
+        }
+    }
+
     fun normalize(input: String): NormalizedInput {
         if (input.isEmpty()) {
             return NormalizedInput(input)
         }
 
-        var normalized = input.trim()
+        var current = input.trim()
+        current = current.replace(Regex("\\s+"), " ")
+
+        // Find all alias matches in the current text
+        data class Match(val origStart: Int, val origEnd: Int, val alias: String, val replacement: String)
         
-        // Reduce multiple spaces to single space
-        normalized = normalized.replace(Regex("\\s+"), " ")
-        
-        // Apply alias replacements (case-insensitive)
+        val allMatches = mutableListOf<Match>()
         for ((alias, replacement) in aliasMap) {
-            // Match whole words only, case-insensitive
-            val regex = Regex("\\b$alias\\b", RegexOption.IGNORE_CASE)
-            normalized = normalized.replace(regex, replacement)
+            val regex = Regex("\\b${Regex.escape(alias)}\\b", RegexOption.IGNORE_CASE)
+            for (match in regex.findAll(current)) {
+                allMatches.add(Match(match.range.first, match.range.last + 1, alias, replacement))
+            }
         }
-        
-        // For simplicity in this phase, we don't build a detailed character map
-        // since the normalized and original lengths should be close.
-        // This can be enhanced if needed for precise span mapping.
-        
+
+        // Sort by position
+        allMatches.sortBy { it.origStart }
+
+        // Apply replacements from right to left to preserve positions
+        val replacements = mutableListOf<Replacement>()
+        for (match in allMatches.asReversed()) {
+            current = current.substring(0, match.origStart) + match.replacement + current.substring(match.origEnd)
+        }
+
+        // Recalculate positions after all replacements
+        var currentPos = 0
+        var originalPos = 0
+        for (match in allMatches.sortedBy { it.origStart }) {
+            val lengthBefore = match.origStart - originalPos
+            val aliasLength = match.alias.length
+            val replacementLength = match.replacement.length
+            
+            currentPos += lengthBefore
+            replacements.add(
+                Replacement(
+                    match.origStart,
+                    match.origEnd,
+                    currentPos,
+                    currentPos + replacementLength
+                )
+            )
+            currentPos += replacementLength
+            originalPos = match.origEnd
+        }
+
+        // Add final unmatched section
+        currentPos += current.length - originalPos
+
         return NormalizedInput(
-            text = normalized,
-            originalToNormalizedMap = emptyMap()
+            text = current,
+            replacements = replacements.toList()
         )
     }
 
-    /**
-     * Get the configured alias map for testing/inspection.
-     */
     fun getAliasMap(): Map<String, String> = aliasMap.toMap()
 }

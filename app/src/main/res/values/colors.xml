@@ -22,4 +22,7 @@
     <color name="text_primary_dark">#EFEFEF</color>
     <color name="hint_dark">#666666</color>
     <color name="divider_dark">#2D2D2D</color>
+
+    <!-- Date/time highlight -->
+    <color name="date_highlight">#44FF5252</color>
 </resources>

@@ -279,4 +279,32 @@ class NattyDateParserServiceTest {
             }
         }
     }
+
+    @Test
+    fun testParse3p() {
+        val now = ZonedDateTime.now()
+        val result = parser.parse("3p", now)
+        assertEquals("Should parse '3p'", ParseState.RESOLVED, result.state)
+        assertNotNull("3p should have start time", result.start)
+    }
+
+    @Test
+    fun testParseWednesday() {
+        val now = ZonedDateTime.now()
+        val result = parser.parse("wed", now)
+        assertEquals("Should parse 'wed' as wednesday", ParseState.RESOLVED, result.state)
+        assertNotNull("wed should have start time", result.start)
+    }
+
+    @Test
+    fun testParseTeamLunch3pOnWed() {
+        val now = ZonedDateTime.now()
+        val result = parser.parse("team lunch 3p on wed", now)
+        
+        assertEquals("Full string should resolve", ParseState.RESOLVED, result.state)
+        assertNotNull("Should have start time", result.start)
+        assertNotNull("Should have end time (default 1h)", result.end)
+        assertNotNull("Should extract title 'team lunch'", result.titleText)
+        assertTrue("Should have matched ranges", result.matchedRanges.isNotEmpty())
+    }
 }
