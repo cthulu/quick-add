@@ -16,15 +16,15 @@ class InputNormalizerTest {
     }
 
     @Test
-    fun testNormalizeTrimming() {
+    fun testNormalizePreservesLeadingTrailingSpaces() {
         val result = normalizer.normalize("  hello world  ")
-        assertEquals("hello world", result.text)
+        assertEquals("  hello world  ", result.text)
     }
 
     @Test
-    fun testNormalizeReduceSpaces() {
+    fun testNormalizePreservesSpaces() {
         val result = normalizer.normalize("hello    world   test")
-        assertEquals("hello world test", result.text)
+        assertEquals("hello    world   test", result.text)
     }
 
     @Test

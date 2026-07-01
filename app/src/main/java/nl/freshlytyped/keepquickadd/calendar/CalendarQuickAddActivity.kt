@@ -104,12 +104,12 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         val cursorEnd = editText.selectionEnd
 
         val spannable = SpannableStringBuilder(input)
-        val highlightColor = ContextCompat.getColor(this, R.color.date_highlight)
+        val highlightColor = ContextCompat.getColor(this, R.color.primary_dark)
         val textColor = editText.currentTextColor
 
         for (range in result.matchedRanges) {
             val safeStart = range.first.coerceAtLeast(0).coerceAtMost(input.length)
-            val safeEnd = range.last.coerceAtLeast(0).coerceAtMost(input.length)
+            val safeEnd = (range.last + 1).coerceAtLeast(0).coerceAtMost(input.length)
             if (safeStart < safeEnd) {
                 spannable.setSpan(
                     RoundedBackgroundSpan(highlightColor, textColor),

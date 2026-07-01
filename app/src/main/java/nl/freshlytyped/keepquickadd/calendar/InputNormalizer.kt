@@ -90,8 +90,7 @@ class InputNormalizer {
             return NormalizedInput(input)
         }
 
-        var current = input.trim()
-        current = current.replace(Regex("\\s+"), " ")
+        var current = input
 
         // Find all alias matches in the current text
         data class Match(val origStart: Int, val origEnd: Int, val alias: String, val replacement: String)

@@ -12,8 +12,8 @@ import android.text.style.ReplacementSpan
 class RoundedBackgroundSpan(
     private val bgColor: Int,
     private val textColor: Int,
-    private val cornerRadius: Float = 8f,
-    private val padding: Float = 3f
+    private val cornerRadius: Float = 15f,
+    private val padding: Float = 8f
 ) : ReplacementSpan() {
 
     override fun getSize(
