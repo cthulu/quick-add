@@ -257,6 +257,39 @@ class NattyDateParserServiceTest {
     }
 
     @Test
+    fun testTimeInPastAdjustedToNextDay() {
+        // Set "now" to 5pm today
+        val now = ZonedDateTime.now().withHour(17).withMinute(0).withSecond(0).withNano(0)
+        
+        // Parse "3pm" which is in the past
+        val result = parser.parse("3pm", now)
+        
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertNotNull(result.start)
+        
+        // Should be adjusted to tomorrow at 3pm
+        val tomorrow = now.toLocalDate().plusDays(1)
+        assertEquals(tomorrow, result.start!!.toLocalDate())
+        assertEquals(15, result.start!!.hour) // 3pm = 15:00
+    }
+
+    @Test
+    fun testTimeInFutureNotAdjusted() {
+        // Set "now" to 2pm today
+        val now = ZonedDateTime.now().withHour(14).withMinute(0).withSecond(0).withNano(0)
+        
+        // Parse "3pm" which is in the future
+        val result = parser.parse("3pm", now)
+        
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertNotNull(result.start)
+        
+        // Should be today at 3pm (not adjusted)
+        assertEquals(now.toLocalDate(), result.start!!.toLocalDate())
+        assertEquals(15, result.start!!.hour) // 3pm = 15:00
+    }
+
+    @Test
     fun testParseMultiplePhrases() {
         val testCases = mapOf(
             "tomorrow" to true,

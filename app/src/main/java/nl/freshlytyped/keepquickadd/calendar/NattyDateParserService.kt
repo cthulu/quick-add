@@ -41,16 +41,19 @@ class NattyDateParserService(
             val dates = primaryDateGroup.dates
             val (startTime, endTime, state) = when {
                 dates.size >= 2 -> {
+                    val start = dateToZonedDateTime(dates[0])
+                    val end = dateToZonedDateTime(dates[1])
                     Triple(
-                        dateToZonedDateTime(dates[0]),
-                        dateToZonedDateTime(dates[1]),
+                        adjustIfInPast(start, now),
+                        adjustIfInPast(end, now),
                         ParseState.RESOLVED
                     )
                 }
                 dates.size == 1 -> {
                     val start = dateToZonedDateTime(dates[0])
-                    val end = start.plusHours(1)
-                    Triple(start, end, ParseState.RESOLVED)
+                    val adjustedStart = adjustIfInPast(start, now)
+                    val end = adjustedStart.plusHours(1)
+                    Triple(adjustedStart, end, ParseState.RESOLVED)
                 }
                 else -> Triple(null, null, ParseState.PARTIAL)
             }
@@ -81,6 +84,18 @@ class NattyDateParserService(
     private fun dateToZonedDateTime(date: Date): ZonedDateTime {
         return Instant.ofEpochMilli(date.time)
             .atZone(zoneId)
+    }
+
+    /**
+     * If the parsed datetime is in the past relative to 'now', adjust it to the next day.
+     * This handles cases like "3pm" when it's already past 3pm today.
+     */
+    private fun adjustIfInPast(parsed: ZonedDateTime, now: ZonedDateTime): ZonedDateTime {
+        return if (parsed.isBefore(now)) {
+            parsed.plusDays(1)
+        } else {
+            parsed
+        }
     }
 
     /**
