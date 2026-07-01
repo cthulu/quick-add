@@ -47,7 +47,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         // Tapping the dim overlay dismisses the activity.
         activityBinding.dimOverlay.setOnClickListener { finish() }
 
-        parserService = NoopDateParserService()
+        parserService = NattyDateParserService()
 
         setupButtons()
 
