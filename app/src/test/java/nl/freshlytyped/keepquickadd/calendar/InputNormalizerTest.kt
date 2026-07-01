@@ -48,6 +48,7 @@ class InputNormalizerTest {
     @Test
     fun testNormalizeDayOfWeekAliases() {
         val testCases = mapOf(
+            "tue" to "tuesday",
             "tues" to "tuesday",
             "wed" to "wednesday",
             "thurs" to "thursday",
@@ -60,6 +61,43 @@ class InputNormalizerTest {
         for ((alias, full) in testCases) {
             val result = normalizer.normalize("meeting next $alias")
             assertEquals("meeting next $full", result.text)
+        }
+    }
+
+    @Test
+    fun testNormalizeSingleDigitTimeAliases() {
+        val amCases = mapOf(
+            "1a" to "1 am",
+            "2a" to "2 am",
+            "3a" to "3 am",
+            "4a" to "4 am",
+            "5a" to "5 am",
+            "6a" to "6 am",
+            "7a" to "7 am",
+            "8a" to "8 am",
+            "9a" to "9 am"
+        )
+
+        for ((alias, full) in amCases) {
+            val result = normalizer.normalize("at $alias")
+            assertEquals("at $full", result.text)
+        }
+
+        val pmCases = mapOf(
+            "1p" to "1 pm",
+            "2p" to "2 pm",
+            "3p" to "3 pm",
+            "4p" to "4 pm",
+            "5p" to "5 pm",
+            "6p" to "6 pm",
+            "7p" to "7 pm",
+            "8p" to "8 pm",
+            "9p" to "9 pm"
+        )
+
+        for ((alias, full) in pmCases) {
+            val result = normalizer.normalize("at $alias")
+            assertEquals("at $full", result.text)
         }
     }
 
@@ -99,8 +137,11 @@ class InputNormalizerTest {
         assertTrue(aliasMap.size > 0)
         assertEquals("tomorrow", aliasMap["tomm"])
         assertEquals("tomorrow", aliasMap["tmrw"])
+        assertEquals("tuesday", aliasMap["tue"])
         assertEquals("tuesday", aliasMap["tues"])
         assertEquals("3 pm", aliasMap["3pm"])
+        assertEquals("3 am", aliasMap["3a"])
+        assertEquals("7 pm", aliasMap["7p"])
     }
 
     @Test

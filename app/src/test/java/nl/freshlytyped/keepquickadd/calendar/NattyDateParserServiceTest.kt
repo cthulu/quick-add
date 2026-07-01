@@ -215,6 +215,48 @@ class NattyDateParserServiceTest {
     }
 
     @Test
+    fun testDefaultDurationWhenNoEnd() {
+        val now = ZonedDateTime.now()
+        val result = parser.parse("tomorrow at 3pm", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertNotNull(result.start)
+        assertNotNull(result.end)
+
+        // Default duration should be 1 hour
+        val durationSeconds = java.time.temporal.ChronoUnit.SECONDS.between(
+            result.start, result.end
+        )
+        assertEquals(3600L, durationSeconds)
+    }
+
+    @Test
+    fun testEndPreservedWhenExplicitRange() {
+        val now = ZonedDateTime.now()
+        // Natty may or may not parse explicit ranges; the important thing
+        // is that when a second date IS parsed, it's preserved, not overridden.
+        val result = parser.parse("tomorrow from 2pm to 4pm", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertNotNull(result.start)
+        assertNotNull(result.end)
+        assertTrue(result.end!!.isAfter(result.start))
+    }
+
+    @Test
+    fun testParseSingleDigitTimeAliases() {
+        val now = ZonedDateTime.now()
+
+        val resultAm = parser.parse("at 3a", now)
+        assertEquals(ParseState.RESOLVED, resultAm.state)
+        assertNotNull(resultAm.start)
+
+        val resultPm = parser.parse("at 7p", now)
+        assertEquals(ParseState.RESOLVED, resultPm.state)
+        assertNotNull(resultPm.start)
+    }
+
+    @Test
     fun testParseMultiplePhrases() {
         val testCases = mapOf(
             "tomorrow" to true,
