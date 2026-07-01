@@ -37,6 +37,7 @@ class NattyDateParserService(
             val matchedRanges = extractMatchedRanges(input, matchedText, normalizedInput.text)
 
             // Extract start and end dates from the DateGroup
+            // Default duration: 1 hour if no end time provided
             val dates = primaryDateGroup.dates
             val (startTime, endTime, state) = when {
                 dates.size >= 2 -> {
@@ -47,11 +48,9 @@ class NattyDateParserService(
                     )
                 }
                 dates.size == 1 -> {
-                    Triple(
-                        dateToZonedDateTime(dates[0]),
-                        null,
-                        ParseState.RESOLVED
-                    )
+                    val start = dateToZonedDateTime(dates[0])
+                    val end = start.plusHours(1)
+                    Triple(start, end, ParseState.RESOLVED)
                 }
                 else -> Triple(null, null, ParseState.PARTIAL)
             }
