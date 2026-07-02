@@ -1,18 +1,23 @@
 package nl.freshlytyped.keepquickadd.calendar
 
+import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.SpannableStringBuilder
+import android.util.Log
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -29,10 +34,22 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private lateinit var activityBinding: ActivityCalendarQuickAddBinding
     private lateinit var binding: LayoutCalendarFloatingWidgetBinding
     private lateinit var parserService: DateParserService
+    private lateinit var calendarRepository: CalendarRepository
     private var currentDraft: CalendarEventDraft? = null
 
     private var parseJob: Job? = null
     private var inputRevision = 0
+
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.all { it.value }
+        if (allGranted) {
+            proceedWithEventCreation()
+        } else {
+            showPermissionDeniedMessage()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,6 +66,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         activityBinding.dimOverlay.setOnClickListener { finish() }
 
         parserService = NattyDateParserService()
+        calendarRepository = CalendarRepository(this)
 
         setupTextWatcher()
         setupButtons()
@@ -165,18 +183,122 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             return
         }
 
-        val timeStr = formatParsedTime(draft)
-        val message = "✓ $timeStr"
-
-        lifecycleScope.launch {
-            binding.tvConfirmation.text = message
-            binding.tvConfirmation.visibility = android.view.View.VISIBLE
-            binding.layoutInput.visibility = android.view.View.GONE
-
-            binding.root.postDelayed({
-                finish()
-            }, 1500)
+        if (PermissionHelper.hasCalendarPermissions(this)) {
+            proceedWithEventCreation()
+        } else {
+            permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
         }
+    }
+
+    private fun proceedWithEventCreation() {
+        val draft = currentDraft ?: return
+        
+        val calendar = calendarRepository.findWritableCalendar()
+        if (calendar == null) {
+            showError("No writable calendar found. Please ensure you have at least one calendar configured.")
+            return
+        }
+
+        EventConfirmationDialog(
+            context = this,
+            title = draft.titleText ?: "Event",
+            startTime = draft.parsedStart!!,
+            endTime = draft.parsedEnd,
+            calendarName = calendar.displayName,
+            onConfirm = {
+                createEvent(draft, calendar)
+            },
+            onCancel = {
+                // User cancelled, stay in activity
+            }
+        )
+    }
+
+    private fun createEvent(
+        draft: CalendarEventDraft,
+        calendar: CalendarRepository.CalendarInfo
+    ) {
+        lifecycleScope.launch(Dispatchers.Default) {
+            try {
+                val eventId = calendarRepository.insertEvent(
+                    calendarId = calendar.id,
+                    title = draft.titleText ?: "Event",
+                    startTime = draft.parsedStart!!,
+                    endTime = draft.parsedEnd,
+                    timezone = draft.timezoneId
+                )
+
+                withContext(Dispatchers.Main) {
+                    if (eventId != null) {
+                        showEventCreatedFeedback(eventId, calendar.displayName)
+                    } else {
+                        showError("Failed to create event. Please try again.")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("CalendarQuickAdd", "Error creating event", e)
+                withContext(Dispatchers.Main) {
+                    showError("Error: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun showEventCreatedFeedback(eventId: Long, calendarName: String) {
+        val timeStr = formatParsedTime(currentDraft ?: return)
+        val message = "✓ Event created in $calendarName"
+
+        binding.layoutInput.visibility = android.view.View.GONE
+        binding.tvConfirmation.text = message
+        binding.tvConfirmation.visibility = android.view.View.VISIBLE
+
+        Snackbar.make(binding.root, message, Snackbar.LENGTH_LONG)
+            .setAction("Open") {
+                openCalendarApp()
+            }
+            .show()
+
+        binding.root.postDelayed({
+            finish()
+        }, 2000)
+    }
+
+    private fun openCalendarApp() {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW)
+                .setData(Uri.parse("content://com.android.calendar/time"))
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("CalendarQuickAdd", "Cannot open calendar app", e)
+            Toast.makeText(this, "Cannot open calendar app", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showPermissionDeniedMessage() {
+        Snackbar.make(
+            binding.root,
+            "Calendar permission required to create events",
+            Snackbar.LENGTH_LONG
+        )
+            .setAction("Settings") {
+                openAppSettings()
+            }
+            .show()
+    }
+
+    private fun openAppSettings() {
+        try {
+            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:$packageName"))
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("CalendarQuickAdd", "Cannot open app settings", e)
+            Toast.makeText(this, "Cannot open app settings", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showError(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
     private fun formatParsedTime(draft: CalendarEventDraft): String {
