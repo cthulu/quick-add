@@ -7,7 +7,10 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.SpannableStringBuilder
 import android.util.Log
+import android.view.View
 import android.view.WindowManager
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,16 +39,19 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private lateinit var parserService: DateParserService
     private lateinit var calendarRepository: CalendarRepository
     private var currentDraft: CalendarEventDraft? = null
+    private var availableCalendars: List<CalendarRepository.CalendarInfo> = emptyList()
+    private var selectedCalendar: CalendarRepository.CalendarInfo? = null
 
     private var parseJob: Job? = null
     private var inputRevision = 0
+    private var permissionsRequested = false
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val allGranted = permissions.all { it.value }
         if (allGranted) {
-            proceedWithEventCreation()
+            loadCalendars()
         } else {
             showPermissionDeniedMessage()
         }
@@ -70,6 +76,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
         setupTextWatcher()
         setupButtons()
+        setupCalendarSpinner()
 
         binding.etEventInput.requestFocus()
         binding.etEventInput.post {
@@ -81,6 +88,10 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
             if (!imeVisible) finish()
             ViewCompat.onApplyWindowInsets(v, insets)
+        }
+
+        if (!permissionsRequested) {
+            requestCalendarPermissionsIfNeeded()
         }
     }
 
@@ -169,6 +180,59 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         binding.btnSave.setOnClickListener { submitEvent() }
     }
 
+    private fun setupCalendarSpinner() {
+        binding.spinnerCalendars.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (position in availableCalendars.indices) {
+                    selectedCalendar = availableCalendars[position]
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                selectedCalendar = null
+            }
+        }
+    }
+
+    private fun requestCalendarPermissionsIfNeeded() {
+        permissionsRequested = true
+        if (!PermissionHelper.hasCalendarPermissions(this)) {
+            permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
+        } else {
+            loadCalendars()
+        }
+    }
+
+    private fun loadCalendars() {
+        lifecycleScope.launch(Dispatchers.Default) {
+            val calendars = calendarRepository.findAllCalendars()
+            withContext(Dispatchers.Main) {
+                availableCalendars = calendars
+                if (calendars.size > 1) {
+                    populateCalendarSpinner(calendars)
+                    binding.spinnerCalendars.visibility = View.VISIBLE
+                    selectedCalendar = calendars.firstOrNull()
+                } else if (calendars.isNotEmpty()) {
+                    selectedCalendar = calendars.first()
+                    binding.spinnerCalendars.visibility = View.GONE
+                } else {
+                    showError("No writable calendars found")
+                }
+            }
+        }
+    }
+
+    private fun populateCalendarSpinner(calendars: List<CalendarRepository.CalendarInfo>) {
+        val calendarNames = calendars.map { it.displayName }
+        val adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            calendarNames
+        )
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spinnerCalendars.adapter = adapter
+    }
+
     private fun submitEvent() {
         val draft = currentDraft
         val rawInput = binding.etEventInput.text.toString().trim()
@@ -183,19 +247,20 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             return
         }
 
-        if (PermissionHelper.hasCalendarPermissions(this)) {
-            proceedWithEventCreation()
-        } else {
-            permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
+        if (!PermissionHelper.hasCalendarPermissions(this)) {
+            requestCalendarPermissionsIfNeeded()
+            return
         }
+
+        proceedWithEventCreation()
     }
 
     private fun proceedWithEventCreation() {
         val draft = currentDraft ?: return
         
-        val calendar = calendarRepository.findWritableCalendar()
+        val calendar = selectedCalendar
         if (calendar == null) {
-            showError("No writable calendar found. Please ensure you have at least one calendar configured.")
+            showError("No calendar selected. Please ensure you have at least one calendar configured.")
             return
         }
 
