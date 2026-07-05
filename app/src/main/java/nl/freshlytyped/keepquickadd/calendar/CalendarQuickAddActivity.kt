@@ -1,11 +1,14 @@
 package nl.freshlytyped.keepquickadd.calendar
 
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.SpannableStringBuilder
+import android.text.method.LinkMovementMethod
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
@@ -29,6 +32,7 @@ import kotlinx.coroutines.withContext
 import nl.freshlytyped.keepquickadd.R
 import nl.freshlytyped.keepquickadd.databinding.ActivityCalendarQuickAddBinding
 import nl.freshlytyped.keepquickadd.databinding.LayoutCalendarFloatingWidgetBinding
+import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
@@ -38,6 +42,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private lateinit var binding: LayoutCalendarFloatingWidgetBinding
     private lateinit var parserService: DateParserService
     private lateinit var calendarRepository: CalendarRepository
+    private lateinit var prefs: SharedPreferences
     private var currentDraft: CalendarEventDraft? = null
     private var availableCalendars: List<CalendarRepository.CalendarInfo> = emptyList()
     private var selectedCalendar: CalendarRepository.CalendarInfo? = null
@@ -73,6 +78,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
         parserService = NattyDateParserService()
         calendarRepository = CalendarRepository(this)
+        prefs = getSharedPreferences("calendar_quick_add", Context.MODE_PRIVATE)
 
         setupTextWatcher()
         setupButtons()
@@ -185,6 +191,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 if (position in availableCalendars.indices) {
                     selectedCalendar = availableCalendars[position]
+                    prefs.edit().putLong("last_selected_calendar_id", selectedCalendar?.id ?: -1).apply()
                 }
             }
 
@@ -211,7 +218,14 @@ class CalendarQuickAddActivity : AppCompatActivity() {
                 if (calendars.size > 1) {
                     populateCalendarSpinner(calendars)
                     binding.spinnerCalendars.visibility = View.VISIBLE
-                    selectedCalendar = calendars.firstOrNull()
+                    
+                    val lastSelectedId = prefs.getLong("last_selected_calendar_id", -1)
+                    selectedCalendar = calendars.find { it.id == lastSelectedId } ?: calendars.firstOrNull()
+                    
+                    val selectedIndex = calendars.indexOfFirst { it.id == selectedCalendar?.id }
+                    if (selectedIndex >= 0) {
+                        binding.spinnerCalendars.setSelection(selectedIndex)
+                    }
                 } else if (calendars.isNotEmpty()) {
                     selectedCalendar = calendars.first()
                     binding.spinnerCalendars.visibility = View.GONE
@@ -264,19 +278,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             return
         }
 
-        EventConfirmationDialog(
-            context = this,
-            title = draft.titleText ?: "Event",
-            startTime = draft.parsedStart!!,
-            endTime = draft.parsedEnd,
-            calendarName = calendar.displayName,
-            onConfirm = {
-                createEvent(draft, calendar)
-            },
-            onCancel = {
-                // User cancelled, stay in activity
-            }
-        )
+        createEvent(draft, calendar)
     }
 
     private fun createEvent(
@@ -310,18 +312,18 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     }
 
     private fun showEventCreatedFeedback(eventId: Long, calendarName: String) {
-        val timeStr = formatParsedTime(currentDraft ?: return)
-        val message = "✓ Event created in $calendarName"
+        val draft = currentDraft ?: return
+        val title = draft.titleText ?: "Event"
+        val timeStr = formatParsedTimeWithRelativeDate(draft)
+        val message = "✓ $title\n$timeStr"
 
         binding.layoutInput.visibility = android.view.View.GONE
         binding.tvConfirmation.text = message
         binding.tvConfirmation.visibility = android.view.View.VISIBLE
-
-        Snackbar.make(binding.root, message, Snackbar.LENGTH_LONG)
-            .setAction("Open") {
-                openCalendarApp()
-            }
-            .show()
+        binding.tvConfirmation.movementMethod = LinkMovementMethod.getInstance()
+        binding.tvConfirmation.setOnClickListener {
+            openCalendarApp()
+        }
 
         binding.root.postDelayed({
             finish()
@@ -364,6 +366,31 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
     private fun showError(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    }
+
+    private fun formatParsedTimeWithRelativeDate(draft: CalendarEventDraft): String {
+        if (draft.parsedStart == null) return "No time parsed"
+
+        val now = ZonedDateTime.now()
+        val today = now.toLocalDate()
+        val tomorrow = today.plusDays(1)
+        val eventDate = draft.parsedStart.toLocalDate()
+
+        val dayStr = when (eventDate) {
+            today -> "Today"
+            tomorrow -> "Tomorrow"
+            else -> draft.parsedStart.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+        }
+
+        val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+        val timeStr = draft.parsedStart.format(timeFormatter)
+
+        return if (draft.parsedEnd != null && draft.parsedEnd.isAfter(draft.parsedStart.plusHours(1))) {
+            val endStr = draft.parsedEnd.format(timeFormatter)
+            "$dayStr at $timeStr - $endStr"
+        } else {
+            "$dayStr at $timeStr"
+        }
     }
 
     private fun formatParsedTime(draft: CalendarEventDraft): String {
