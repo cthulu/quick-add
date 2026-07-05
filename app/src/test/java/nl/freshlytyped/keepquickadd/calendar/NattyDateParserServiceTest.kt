@@ -340,4 +340,17 @@ class NattyDateParserServiceTest {
         assertNotNull("Should extract title 'team lunch'", result.titleText)
         assertTrue("Should have matched ranges", result.matchedRanges.isNotEmpty())
     }
+
+    @Test
+    fun testParseSaturdayEveningDinner() {
+        val now = ZonedDateTime.now()
+        val input = "Saturday evening dinner"
+        val result = parser.parse(input, now)
+        
+        assertEquals("Should resolve Saturday evening", ParseState.RESOLVED, result.state)
+        assertNotNull("Should have start time", result.start)
+        assertNotNull("Should extract title", result.titleText)
+        // Both "Saturday" and "evening" should be highlighted
+        assertTrue("Should have matched ranges for date/time", result.matchedRanges.isNotEmpty())
+    }
 }

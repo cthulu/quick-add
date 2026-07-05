@@ -314,7 +314,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private fun showEventCreatedFeedback(eventId: Long, calendarName: String) {
         val draft = currentDraft ?: return
         val title = draft.titleText ?: "Event"
-        val timeStr = formatParsedTimeWithRelativeDate(draft)
+        val timeStr = formatParsedTime(draft, useRelativeDate = true)
         val message = "✓ $title\n$timeStr"
 
         binding.layoutInput.visibility = android.view.View.GONE
@@ -331,13 +331,40 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     }
 
     private fun openCalendarApp() {
+        val draft = currentDraft
+        
+        if (draft?.parsedStart != null) {
+            // Send intent with specific time to focus on the event's date
+            val timeInMillis = draft.parsedStart.toInstant().toEpochMilli()
+            val uri = Uri.parse("content://com.android.calendar/time/$timeInMillis")
+            startIntentSafely(
+                Intent(Intent.ACTION_VIEW).setData(uri),
+                "Cannot open calendar app"
+            )
+        } else {
+            // Fallback to opening calendar without specific time
+            startIntentSafely(
+                Intent(Intent.ACTION_VIEW)
+                    .setData(Uri.parse("content://com.android.calendar/time")),
+                "Cannot open calendar app"
+            )
+        }
+    }
+
+    private fun openAppSettings() {
+        startIntentSafely(
+            Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:$packageName")),
+            "Cannot open app settings"
+        )
+    }
+
+    private fun startIntentSafely(intent: Intent, errorMessage: String) {
         try {
-            val intent = Intent(Intent.ACTION_VIEW)
-                .setData(Uri.parse("content://com.android.calendar/time"))
             startActivity(intent)
         } catch (e: Exception) {
-            Log.e("CalendarQuickAdd", "Cannot open calendar app", e)
-            Toast.makeText(this, "Cannot open calendar app", Toast.LENGTH_SHORT).show()
+            Log.e("CalendarQuickAdd", errorMessage, e)
+            Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -353,57 +380,36 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun openAppSettings() {
-        try {
-            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                .setData(Uri.parse("package:$packageName"))
-            startActivity(intent)
-        } catch (e: Exception) {
-            Log.e("CalendarQuickAdd", "Cannot open app settings", e)
-            Toast.makeText(this, "Cannot open app settings", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     private fun showError(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
-    private fun formatParsedTimeWithRelativeDate(draft: CalendarEventDraft): String {
+    private fun formatParsedTime(draft: CalendarEventDraft, useRelativeDate: Boolean = false): String {
         if (draft.parsedStart == null) return "No time parsed"
 
-        val now = ZonedDateTime.now()
-        val today = now.toLocalDate()
-        val tomorrow = today.plusDays(1)
-        val eventDate = draft.parsedStart.toLocalDate()
-
-        val dayStr = when (eventDate) {
-            today -> "Today"
-            tomorrow -> "Tomorrow"
-            else -> draft.parsedStart.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
-        }
-
-        val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
         val timeStr = draft.parsedStart.format(timeFormatter)
+
+        val dayStr = if (useRelativeDate) {
+            val now = ZonedDateTime.now()
+            val today = now.toLocalDate()
+            val tomorrow = today.plusDays(1)
+            val eventDate = draft.parsedStart.toLocalDate()
+
+            when (eventDate) {
+                today -> "Today"
+                tomorrow -> "Tomorrow"
+                else -> draft.parsedStart.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+            }
+        } else {
+            draft.parsedStart.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+        }
 
         return if (draft.parsedEnd != null && draft.parsedEnd.isAfter(draft.parsedStart.plusHours(1))) {
             val endStr = draft.parsedEnd.format(timeFormatter)
             "$dayStr at $timeStr - $endStr"
         } else {
             "$dayStr at $timeStr"
-        }
-    }
-
-    private fun formatParsedTime(draft: CalendarEventDraft): String {
-        if (draft.parsedStart == null) return "No time parsed"
-
-        val formatter = DateTimeFormatter.ofPattern("EEE, MMM d 'at' h:mm a")
-        val startStr = draft.parsedStart.format(formatter)
-
-        return if (draft.parsedEnd != null && draft.parsedEnd.isAfter(draft.parsedStart.plusHours(1))) {
-            val endStr = draft.parsedEnd.format(DateTimeFormatter.ofPattern("h:mm a"))
-            "$startStr - $endStr"
-        } else {
-            startStr
         }
     }
 

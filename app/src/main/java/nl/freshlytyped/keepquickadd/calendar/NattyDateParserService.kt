@@ -32,13 +32,19 @@ class NattyDateParserService(
                 return ParseResult(state = ParseState.NONE)
             }
 
-            val primaryDateGroup = dateGroups.first()
-            val matchedText = primaryDateGroup.text.trim()
-            val matchedRanges = mapNormalizedRangesToOriginal(input, matchedText, normalizedInput)
+            // Collect matched text from all date groups for better highlighting
+            val allMatchedTexts = dateGroups.map { it.text.trim() }
+            val combinedMatchedText = allMatchedTexts.joinToString(" ")
+            
+            val matchedRanges = findAllMatchedRanges(input, allMatchedTexts, normalizedInput)
 
-            // Extract start and end dates from the DateGroup
-            // Default duration: 1 hour if no end time provided
-            val dates = primaryDateGroup.dates
+            // Extract start and end dates from the DateGroups
+            // If multiple groups exist, use first for date, second for time
+            val dates = mutableListOf<Date>()
+            for (group in dateGroups) {
+                dates.addAll(group.dates)
+            }
+
             val (startTime, endTime, state) = when {
                 dates.size >= 2 -> {
                     val start = dateToZonedDateTime(dates[0])
@@ -58,8 +64,8 @@ class NattyDateParserService(
                 else -> Triple(null, null, ParseState.PARTIAL)
             }
 
-            // Extract title by removing matched date segment from input
-            val titleText = extractTitle(input, matchedText)
+            // Extract title by removing all matched date segments from input
+            val titleText = extractTitle(input, allMatchedTexts)
 
             ParseResult(
                 start = startTime,
@@ -67,8 +73,8 @@ class NattyDateParserService(
                 titleText = titleText,
                 matchedRanges = matchedRanges,
                 state = state,
-                confidence = calculateConfidence(primaryDateGroup),
-                diagnostics = "Natty matched: '$matchedText' in input"
+                confidence = calculateConfidence(dateGroups.first()),
+                diagnostics = "Natty matched: '$combinedMatchedText' in input (${dateGroups.size} groups)"
             )
         } catch (e: Exception) {
             ParseResult(
@@ -99,8 +105,24 @@ class NattyDateParserService(
     }
 
     /**
+     * Find all matched ranges for multiple matched texts and combine them.
+     */
+    private fun findAllMatchedRanges(
+        original: String,
+        matchedTexts: List<String>,
+        normalizedInput: InputNormalizer.NormalizedInput
+    ): List<IntRange> {
+        val allRanges = mutableListOf<IntRange>()
+        for (matchedText in matchedTexts) {
+            allRanges.addAll(mapNormalizedRangesToOriginal(original, matchedText, normalizedInput))
+        }
+        return allRanges.sortedBy { it.first }
+    }
+
+    /**
      * Map matched ranges from normalized text back to original input positions
      * using the replacement tracking from InputNormalizer.
+     * Also expands ranges to include adjacent time-related words.
      */
     private fun mapNormalizedRangesToOriginal(
         original: String,
@@ -117,22 +139,57 @@ class NattyDateParserService(
             return emptyList()
         }
 
-        val normEnd = (normIndex + matchedText.length).coerceAtMost(normalizedInput.text.length)
+        var normStart = normIndex
+        var normEnd = (normIndex + matchedText.length).coerceAtMost(normalizedInput.text.length)
+
+        // Expand the range to include adjacent time-related words
+        val timeRelatedWords = setOf("evening", "morning", "afternoon", "night", "tonight", "dawn", "dusk")
+        val normalizedLower = normalizedInput.text.lowercase()
+
+        // Expand backward
+        var checkPos = normStart - 1
+        while (checkPos >= 0) {
+            val wordStart = normalizedLower.lastIndexOf(' ', checkPos) + 1
+            val wordEnd = checkPos + 1
+            val word = normalizedLower.substring(wordStart, wordEnd)
+            if (timeRelatedWords.contains(word.trim())) {
+                normStart = wordStart
+                checkPos = wordStart - 2
+            } else {
+                break
+            }
+        }
+
+        // Expand forward
+        checkPos = normEnd
+        while (checkPos < normalizedLower.length) {
+            val spacePos = normalizedLower.indexOf(' ', checkPos)
+            val wordEnd = if (spacePos < 0) normalizedLower.length else spacePos
+            val word = normalizedLower.substring(checkPos, wordEnd)
+            if (timeRelatedWords.contains(word.trim())) {
+                normEnd = wordEnd
+                checkPos = wordEnd + 1
+            } else {
+                break
+            }
+        }
 
         // Use the normalizer's mapping to convert back to original
-        return normalizedInput.mapToOriginal(normIndex, normEnd)
+        return normalizedInput.mapToOriginal(normStart, normEnd)
     }
 
     /**
-     * Extract title by removing the matched date/time portion from input.
+     * Extract title by removing the matched date/time portions from input.
      * Returns null if input is entirely date/time (no title text).
      */
-    private fun extractTitle(input: String, matchedText: String): String? {
-        if (matchedText.isEmpty()) {
-            return input.trim().takeIf { it.isNotEmpty() }
+    private fun extractTitle(input: String, matchedTexts: List<String>): String? {
+        var title = input
+        for (matchedText in matchedTexts) {
+            if (matchedText.isNotEmpty()) {
+                title = title.replace(matchedText, "", ignoreCase = true)
+            }
         }
-
-        val title = input.replace(matchedText, "", ignoreCase = true).trim()
+        title = title.trim()
         return title.takeIf { it.isNotEmpty() }
     }
 
