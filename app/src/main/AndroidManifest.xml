@@ -60,6 +60,16 @@
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize|stateAlwaysVisible" />
 
+        <!-- Trampoline shortcut activity that launches CalendarQuickAddActivity -->
+        <activity
+            android:name=".CalendarQuickAddShortcutActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Transparent"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:label="@string/calendar_shortcut_label" />
+
         <!-- Bottom-sheet style activity hosting the calendar quick-add popup -->
         <activity
             android:name=".calendar.CalendarQuickAddActivity"

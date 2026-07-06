@@ -9,6 +9,9 @@ This index links the Calendar Quick Add implementation specs in execution order 
 4. `specs/11_calendarcontract_integration_and_permissions.md`
 5. `specs/12_testing_performance_and_rollout.md`
 
+## Android Shortcut
+The `CalendarQuickAddActivity` is exposed as an Android shortcut via `CalendarQuickAddShortcutActivity`, similar to the Keep quick-add shortcut. Users can long-press the app icon to access both "Quick Add to Keep" and "Quick Add to Calendar" shortcuts.
+
 ## Dependency Graph
 - Step 8 is required before all later steps.
 - Step 9 depends on Step 8 parser interfaces and draft models.
