@@ -47,7 +47,6 @@ class DateParserServiceTest {
         assertNull(result.titleText)
         assertTrue(result.matchedRanges.isEmpty())
         assertEquals(ParseState.NONE, result.state)
-        assertNull(result.confidence)
         assertNull(result.diagnostics)
     }
 
@@ -60,7 +59,6 @@ class DateParserServiceTest {
             titleText = "Meeting",
             matchedRanges = listOf(0..6),
             state = ParseState.RESOLVED,
-            confidence = 0.95f,
             diagnostics = "Parsed successfully"
         )
 
@@ -69,7 +67,6 @@ class DateParserServiceTest {
         assertEquals("Meeting", result.titleText)
         assertEquals(1, result.matchedRanges.size)
         assertEquals(ParseState.RESOLVED, result.state)
-        assertEquals(0.95f, result.confidence)
         assertEquals("Parsed successfully", result.diagnostics)
     }
 

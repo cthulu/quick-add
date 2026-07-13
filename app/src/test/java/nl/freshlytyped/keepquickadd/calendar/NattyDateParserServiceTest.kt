@@ -126,17 +126,6 @@ class NattyDateParserServiceTest {
     }
 
     @Test
-    fun testParseConfidence() {
-        val now = ZonedDateTime.now()
-        val result = parser.parse("tomorrow at 3pm", now)
-        
-        assertEquals(ParseState.RESOLVED, result.state)
-        assertNotNull(result.confidence)
-        assertTrue(result.confidence!! > 0)
-        assertTrue(result.confidence!! <= 1.0f)
-    }
-
-    @Test
     fun testParseDiagnostics() {
         val now = ZonedDateTime.now()
         val result = parser.parse("tomorrow", now)

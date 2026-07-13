@@ -8,6 +8,5 @@ data class ParseResult(
     val titleText: String? = null,
     val matchedRanges: List<IntRange> = emptyList(),
     val state: ParseState = ParseState.NONE,
-    val confidence: Float? = null,
     val diagnostics: String? = null
 )

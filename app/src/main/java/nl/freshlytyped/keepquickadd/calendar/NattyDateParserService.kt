@@ -73,7 +73,6 @@ class NattyDateParserService(
                 titleText = titleText,
                 matchedRanges = matchedRanges,
                 state = state,
-                confidence = calculateConfidence(dateGroups.first()),
                 diagnostics = "Natty matched: '$combinedMatchedText' in input (${dateGroups.size} groups)"
             )
         } catch (e: Exception) {
@@ -189,18 +188,7 @@ class NattyDateParserService(
                 title = title.replace(matchedText, "", ignoreCase = true)
             }
         }
-        title = title.trim()
+        title = title.trim().replace("\\s+".toRegex(), " ")
         return title.takeIf { it.isNotEmpty() }
-    }
-
-    /**
-     * Calculate a confidence score (0-1) based on Natty's matched groups.
-     * Heuristic: if Natty matched recursively or recursively extracted, higher confidence.
-     */
-    private fun calculateConfidence(dateGroup: DateGroup): Float {
-        // Natty doesn't expose explicit confidence, so we use a simple heuristic
-        // Recursive matches are generally more reliable
-        val isRecursive = dateGroup.isRecurring
-        return if (isRecursive) 0.85f else 0.90f
     }
 }
