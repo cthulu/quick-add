@@ -342,4 +342,43 @@ class NattyDateParserServiceTest {
         // Both "Saturday" and "evening" should be highlighted
         assertTrue("Should have matched ranges for date/time", result.matchedRanges.isNotEmpty())
     }
+
+    @Test
+    fun testTitleExtractionWithAliasNormalization() {
+        val now = ZonedDateTime.now()
+        val result = parser.parse("team lunch 3p on wed", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertNotNull(result.titleText)
+        assertEquals("team lunch", result.titleText)
+    }
+
+    @Test
+    fun testTitleExtractionWithPmAlias() {
+        val now = ZonedDateTime.now()
+        val result = parser.parse("Meeting tomorrow at 3pm", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertNotNull(result.titleText)
+        assertEquals("Meeting", result.titleText)
+    }
+
+    @Test
+    fun testTitleExtractionOnlyDateTokens() {
+        val now = ZonedDateTime.now()
+        val result = parser.parse("tomorrow at 3pm", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertNull("Title should be null when input is entirely date/time", result.titleText)
+    }
+
+    @Test
+    fun testTitleExtractionTrimmedWhitespace() {
+        val now = ZonedDateTime.now()
+        val result = parser.parse("  Doctor appointment tomorrow at 2pm  ", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertNotNull(result.titleText)
+        assertEquals("Doctor appointment", result.titleText)
+    }
 }

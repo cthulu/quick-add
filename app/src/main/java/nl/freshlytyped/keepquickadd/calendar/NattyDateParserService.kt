@@ -65,7 +65,7 @@ class NattyDateParserService(
             }
 
             // Extract title by removing all matched date segments from input
-            val titleText = extractTitle(input, allMatchedTexts)
+            val titleText = extractTitle(input, matchedRanges)
 
             ParseResult(
                 start = startTime,
@@ -179,16 +179,32 @@ class NattyDateParserService(
 
     /**
      * Extract title by removing the matched date/time portions from input.
+     * Uses matched ranges (mapped to original positions) to reliably strip
+     * date tokens even when normalization altered the text.
      * Returns null if input is entirely date/time (no title text).
      */
-    private fun extractTitle(input: String, matchedTexts: List<String>): String? {
-        var title = input
-        for (matchedText in matchedTexts) {
-            if (matchedText.isNotEmpty()) {
-                title = title.replace(matchedText, "", ignoreCase = true)
-            }
+    private fun extractTitle(input: String, matchedRanges: List<IntRange>): String? {
+        if (matchedRanges.isEmpty()) {
+            return input.trim().replace("\\s+".toRegex(), " ")
+                .takeIf { it.isNotEmpty() }
         }
-        title = title.trim().replace("\\s+".toRegex(), " ")
+
+        val sortedRanges = matchedRanges.sortedBy { it.first }
+        val result = StringBuilder()
+        var lastEnd = 0
+        for (range in sortedRanges) {
+            val start = range.first.coerceAtLeast(0)
+            val end = (range.last + 1).coerceAtMost(input.length)
+            if (start > lastEnd) {
+                result.append(input.substring(lastEnd, start))
+            }
+            lastEnd = maxOf(lastEnd, end)
+        }
+        if (lastEnd < input.length) {
+            result.append(input.substring(lastEnd))
+        }
+
+        val title = result.toString().trim().replace("\\s+".toRegex(), " ")
         return title.takeIf { it.isNotEmpty() }
     }
 }

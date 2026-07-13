@@ -74,20 +74,39 @@ class InputNormalizer {
         val replacements: List<Replacement> = emptyList()
     ) {
         fun mapToOriginal(normStart: Int, normEnd: Int): List<IntRange> {
-            val result = mutableListOf<IntRange>()
+            if (replacements.isEmpty()) {
+                return listOf(normStart until normEnd)
+            }
 
+            val origStart = mapNormalizedPositionToOriginal(normStart, snapToEnd = false)
+            val origEnd = mapNormalizedPositionToOriginal(normEnd, snapToEnd = true)
+
+            return if (origStart < origEnd) {
+                listOf(origStart until origEnd)
+            } else {
+                emptyList()
+            }
+        }
+
+        private fun mapNormalizedPositionToOriginal(normPos: Int, snapToEnd: Boolean): Int {
+            var offset = 0
             for (rep in replacements) {
-                val overlaps = normStart < rep.normalizedEnd && normEnd > rep.normalizedStart
-                if (overlaps) {
-                    result.add(rep.originalStart until rep.originalEnd)
+                if (normPos >= rep.normalizedEnd) {
+                    offset += (rep.originalEnd - rep.originalStart) -
+                        (rep.normalizedEnd - rep.normalizedStart)
+                } else if (snapToEnd) {
+                    if (normPos > rep.normalizedStart) {
+                        return rep.originalEnd
+                    }
+                    break
+                } else {
+                    if (normPos >= rep.normalizedStart) {
+                        return rep.originalStart
+                    }
+                    break
                 }
             }
-
-            if (result.isEmpty()) {
-                result.add(normStart until normEnd)
-            }
-
-            return result
+            return normPos + offset
         }
     }
 

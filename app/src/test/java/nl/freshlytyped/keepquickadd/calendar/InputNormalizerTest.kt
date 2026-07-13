@@ -176,4 +176,40 @@ class InputNormalizerTest {
         assertEquals("team lunch 3 pm on wednesday", result.text)
         assertEquals("Should have 2 replacements (3p and wed)", 2, result.replacements.size)
     }
+
+    @Test
+    fun testMapToOriginalNoReplacements() {
+        val normalized = normalizer.normalize("hello world")
+        val ranges = normalized.mapToOriginal(0, 5)
+        assertEquals(1, ranges.size)
+        assertEquals(0, ranges[0].first)
+        assertEquals(4, ranges[0].last)
+    }
+
+    @Test
+    fun testMapToOriginalSingleReplacement() {
+        val normalized = normalizer.normalize("3p")
+        val ranges = normalized.mapToOriginal(0, 4)
+        assertEquals(1, ranges.size)
+        assertEquals(0, ranges[0].first)
+        assertEquals(1, ranges[0].last)
+    }
+
+    @Test
+    fun testMapToOriginalMultipleReplacementsContiguous() {
+        val normalized = normalizer.normalize("3p on wed")
+        val ranges = normalized.mapToOriginal(0, 17)
+        assertEquals("Should return single contiguous range", 1, ranges.size)
+        assertEquals(0, ranges[0].first)
+        assertEquals(8, ranges[0].last)
+    }
+
+    @Test
+    fun testMapToOriginalPartialRangeBeforeReplacement() {
+        val normalized = normalizer.normalize("meeting 3p")
+        val ranges = normalized.mapToOriginal(0, 8)
+        assertEquals(1, ranges.size)
+        assertEquals(0, ranges[0].first)
+        assertEquals(7, ranges[0].last)
+    }
 }
