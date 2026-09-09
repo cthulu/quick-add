@@ -72,7 +72,6 @@ Use a noop parser for this phase that always returns `ParseState.NONE`.
 ## Deliverables
 - New Calendar quick-add popup accessible from trigger.
 - `CalendarEventDraft` and parser interfaces introduced.
-- Feature-flag or guarded routing in place for safe incremental rollout.
 
 ## Acceptance Criteria
 - User can open Calendar quick-add from the same UX family as Keep quick add.

@@ -20,7 +20,7 @@ Handle runtime permissions:
 - `android.permission.READ_CALENDAR` (if needed for calendar lookup)
 
 Flow:
-1. On save action, check permission.
+1. When the calendar quick-add activity opens, check permission.
 2. If denied, request permission with rationale.
 3. If permanently denied, show guidance to app settings.
 
@@ -41,13 +41,6 @@ Use `ContentResolver.insert(CalendarContract.Events.CONTENT_URI, values)` with:
 Default duration policy (if no end parsed):
 - e.g., 60 minutes from start (configurable constant)
 
-### User Confirmation
-Before insertion show confirmation summary:
-- Title
-- Parsed date/time
-- Target calendar (if available)
-- Confirm / Cancel actions
-
 ### Error Handling
 - Permission denied
 - Parse unresolved (`ParseState != RESOLVED`)
@@ -58,7 +51,7 @@ All failures should present actionable, user-friendly message.
 ## Deliverables
 - End-to-end event creation flow from quick add popup.
 - Runtime permission UX.
-- Confirmation dialog and success/failure feedback.
+- Success/failure feedback.
 
 ## Acceptance Criteria
 - With permission granted and resolved parse, event is inserted successfully.
