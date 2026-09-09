@@ -73,7 +73,8 @@ class CalendarRepository(private val context: Context) {
                 CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
                 CalendarContract.Calendars.VISIBLE,
                 CalendarContract.Calendars.OWNER_ACCOUNT,
-                CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL
+                CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
+                CalendarContract.Calendars.IS_PRIMARY
             )
             
             val selection = "${CalendarContract.Calendars.VISIBLE} = 1"
@@ -89,6 +90,7 @@ class CalendarRepository(private val context: Context) {
                 val nameIndex = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME)
                 val accessIndex = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL)
                 val ownerIndex = cursor.getColumnIndex(CalendarContract.Calendars.OWNER_ACCOUNT)
+                val primaryIndex = cursor.getColumnIndex(CalendarContract.Calendars.IS_PRIMARY)
 
                 var primaryCalendar: CalendarInfo? = null
                 var firstWritableCalendar: CalendarInfo? = null
@@ -98,6 +100,7 @@ class CalendarRepository(private val context: Context) {
                     val name = cursor.getString(nameIndex) ?: "Unnamed Calendar"
                     val accessLevel = cursor.getInt(accessIndex)
                     val ownerAccount = cursor.getString(ownerIndex) ?: ""
+                    val isPrimary = cursor.getInt(primaryIndex) == 1
 
                     val isWritable = accessLevel >= CalendarContract.Calendars.CAL_ACCESS_EDITOR
 
@@ -112,8 +115,7 @@ class CalendarRepository(private val context: Context) {
                             firstWritableCalendar = calendarInfo
                         }
 
-                        // Prefer primary calendar (usually the one owned by the user)
-                        if (primaryCalendar == null && ownerAccount.isNotEmpty()) {
+                        if (primaryCalendar == null && isPrimary) {
                             primaryCalendar = calendarInfo
                         }
                     }
@@ -144,7 +146,6 @@ class CalendarRepository(private val context: Context) {
                     (endTime ?: startTime.plusHours(1)).toInstant().toEpochMilli()
                 )
                 put(CalendarContract.Events.EVENT_TIMEZONE, timezone)
-                put(CalendarContract.Events.HAS_ALARM, 1)
             }
 
             val eventUri = contentResolver.insert(

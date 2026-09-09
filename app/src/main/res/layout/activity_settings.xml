@@ -125,6 +125,31 @@
             android:backgroundTint="@color/surface_variant"
             android:textColor="@color/on_surface" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Calendars"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/on_surface"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:id="@+id/tvCalendarStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Loading calendars..."
+            android:textSize="12sp"
+            android:textColor="@color/on_surface_secondary"
+            android:layout_marginBottom="4dp" />
+
+        <LinearLayout
+            android:id="@+id/calendarInputsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
         <!-- Divider -->
         <View
             android:layout_width="match_parent"

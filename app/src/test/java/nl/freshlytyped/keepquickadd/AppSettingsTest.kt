@@ -124,6 +124,13 @@ class AppSettingsTest {
     }
 
     @Test
+    fun `saveLists preserves whitespace around the first nonblank entry`() {
+        settings.saveLists(listOf("  Groceries  ", "  TODO  "))
+
+        assertEquals(listOf("  Groceries  ", "TODO"), settings.getLists())
+    }
+
+    @Test
     fun `saveLists trims and removes blank non-first entries`() {
         settings.saveLists(listOf("Groceries", "  ", "TODO", ""))
         assertEquals(listOf("Groceries", "TODO"), settings.getLists())
@@ -134,5 +141,20 @@ class AppSettingsTest {
         settings.saveLists(listOf("A", "B", "C"))
         settings.saveLists(listOf("X", "Y"))
         assertEquals(listOf("X", "Y"), settings.getLists())
+    }
+
+    @Test
+    fun `hidden calendar ids persist across settings instances`() {
+        settings.hiddenCalendarIds = setOf(42L, 7L)
+
+        assertEquals(setOf(42L, 7L), AppSettings(context).hiddenCalendarIds)
+    }
+
+    @Test
+    fun `hidden calendar ids ignore invalid and negative values`() {
+        context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            .edit().putString("hidden_calendar_ids", "42, invalid, -7, 42").commit()
+
+        assertEquals(setOf(42L), settings.hiddenCalendarIds)
     }
 }

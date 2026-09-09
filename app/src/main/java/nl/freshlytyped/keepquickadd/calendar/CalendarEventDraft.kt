@@ -10,4 +10,7 @@ data class CalendarEventDraft(
     val parseState: ParseState = ParseState.NONE,
     val matchedRanges: List<IntRange> = emptyList(),
     val timezoneId: String = "UTC"
-)
+) {
+    fun hasValidTimeRange(): Boolean =
+        parsedStart != null && (parsedEnd == null || parsedEnd.isAfter(parsedStart))
+}

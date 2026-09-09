@@ -3,13 +3,53 @@ package nl.freshlytyped.keepquickadd
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
+
+internal enum class KeepFailureCategory {
+    OFFLINE,
+    TIMEOUT,
+    CONFIGURATION,
+    SERVER
+}
+
+internal class KeepFailureException(val category: KeepFailureCategory) :
+    IOException(KeepFailureMapper.messageFor(category))
+
+internal object KeepFailureMapper {
+    fun categoryFor(statusCode: Int): KeepFailureCategory = when {
+        statusCode == 408 -> KeepFailureCategory.TIMEOUT
+        statusCode in 400..499 -> KeepFailureCategory.CONFIGURATION
+        else -> KeepFailureCategory.SERVER
+    }
+
+    fun categoryFor(error: Throwable): KeepFailureCategory = when (error) {
+        is KeepFailureException -> error.category
+        is SocketTimeoutException -> KeepFailureCategory.TIMEOUT
+        is UnknownHostException, is ConnectException, is NoRouteToHostException ->
+            KeepFailureCategory.OFFLINE
+        else -> KeepFailureCategory.SERVER
+    }
+
+    fun messageFor(category: KeepFailureCategory): String = when (category) {
+        KeepFailureCategory.OFFLINE -> "No internet connection. Check your connection and try again."
+        KeepFailureCategory.TIMEOUT -> "The connection timed out. Check your connection and try again."
+        KeepFailureCategory.CONFIGURATION -> "Keep connection settings are invalid. Check Settings and try again."
+        KeepFailureCategory.SERVER -> "Keep is unavailable right now. Try again later."
+    }
+
+    fun messageFor(error: Throwable): String = messageFor(categoryFor(error))
+}
 
 class KeepRepository(context: Context) {
 
@@ -19,6 +59,16 @@ class KeepRepository(context: Context) {
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
+
+    private fun publishUrl(publishKey: String, subscribeKey: String, channel: String): String =
+        "${AppSettings.PUBNUB_BASE_URL}/publish".toHttpUrl().newBuilder()
+            .addPathSegment(publishKey)
+            .addPathSegment(subscribeKey)
+            .addPathSegment("0")
+            .addPathSegment(channel)
+            .addPathSegment("0")
+            .build()
+            .toString()
 
     /**
      * Publishes an "add item to list" message to PubNub.
@@ -34,7 +84,7 @@ class KeepRepository(context: Context) {
 
         if (publishKey.isBlank() || subscribeKey.isBlank()) {
             return@withContext Result.failure(
-                IOException("PubNub keys not configured — open Settings")
+                KeepFailureException(KeepFailureCategory.CONFIGURATION)
             )
         }
 
@@ -43,8 +93,7 @@ class KeepRepository(context: Context) {
                 "message", "add $text to the list $listName"
             ).toString()
 
-            val url = "${AppSettings.PUBNUB_BASE_URL}/publish" +
-                "/$publishKey/$subscribeKey/0/$channel/0"
+            val url = publishUrl(publishKey, subscribeKey, channel)
 
             val body = payload.toRequestBody("application/json".toMediaType())
             val requestBuilder = Request.Builder()
@@ -53,22 +102,16 @@ class KeepRepository(context: Context) {
             if (apiKey.isNotBlank()) requestBuilder.header("x-api-key", apiKey)
             val request = requestBuilder.build()
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                val errorMsg = when (response.code) {
-                    400 -> "Bad request — check PubNub keys"
-                    401, 403 -> "Authentication error — check API key"
-                    else -> "PubNub error: ${response.code}"
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(
+                        KeepFailureException(KeepFailureMapper.categoryFor(response.code))
+                    )
                 }
-                return@withContext Result.failure(IOException(errorMsg))
+                Result.success(Unit)
             }
-            Result.success(Unit)
-        } catch (e: java.net.UnknownHostException) {
-            Result.failure(IOException("No internet — cannot reach ${e.message ?: "host"}"))
-        } catch (e: java.net.SocketTimeoutException) {
-            Result.failure(IOException("Network timeout — check connection"))
         } catch (e: Exception) {
-            Result.failure(IOException("${e.javaClass.simpleName}: ${e.message ?: "unknown"}"))
+            Result.failure(KeepFailureException(KeepFailureMapper.categoryFor(e)))
         }
     }
 
@@ -77,10 +120,15 @@ class KeepRepository(context: Context) {
      */
     suspend fun testConnection(publishKey: String, subscribeKey: String, apiKey: String, channel: String): Result<Unit> =
         withContext(Dispatchers.IO) {
+            if (publishKey.isBlank() || subscribeKey.isBlank()) {
+                return@withContext Result.failure(
+                    KeepFailureException(KeepFailureCategory.CONFIGURATION)
+                )
+            }
+
             try {
                 val payload = JSONObject().put("message", "test").toString()
-                val url = "${AppSettings.PUBNUB_BASE_URL}/publish" +
-                    "/$publishKey/$subscribeKey/0/$channel/0"
+                val url = publishUrl(publishKey, subscribeKey, channel)
 
                 val body = payload.toRequestBody("application/json".toMediaType())
                 val requestBuilder = Request.Builder()
@@ -89,11 +137,14 @@ class KeepRepository(context: Context) {
                 if (apiKey.isNotBlank()) requestBuilder.header("x-api-key", apiKey)
                 val request = requestBuilder.build()
 
-                val response = client.newCall(request).execute()
-                if (response.isSuccessful) Result.success(Unit)
-                else Result.failure(IOException("PubNub returned ${response.code}"))
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) Result.success(Unit)
+                    else Result.failure(
+                        KeepFailureException(KeepFailureMapper.categoryFor(response.code))
+                    )
+                }
             } catch (e: Exception) {
-                Result.failure(e)
+                Result.failure(KeepFailureException(KeepFailureMapper.categoryFor(e)))
             }
         }
 }

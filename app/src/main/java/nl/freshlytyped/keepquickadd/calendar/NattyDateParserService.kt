@@ -6,6 +6,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Date
+import java.util.TimeZone
 
 /**
  * Natural language date/time parser using Natty library.
@@ -17,7 +18,7 @@ class NattyDateParserService(
     private val zoneId: ZoneId = ZoneId.systemDefault()
 ) : DateParserService {
 
-    private val nattySingleton = Parser()
+    private val nattySingleton = Parser(TimeZone.getTimeZone(zoneId))
 
     override fun parse(input: String, now: ZonedDateTime): ParseResult {
         if (input.isBlank()) {
@@ -26,7 +27,8 @@ class NattyDateParserService(
 
         return try {
             val normalizedInput = normalizer.normalize(input)
-            val dateGroups = nattySingleton.parse(normalizedInput.text)
+            val referenceNow = now.withZoneSameInstant(zoneId)
+            val dateGroups = nattySingleton.parse(normalizedInput.text, Date.from(referenceNow.toInstant()))
 
             if (dateGroups.isEmpty()) {
                 return ParseResult(state = ParseState.NONE)
@@ -35,6 +37,10 @@ class NattyDateParserService(
             // Collect matched text from all date groups for better highlighting
             val allMatchedTexts = dateGroups.map { it.text.trim() }
             val combinedMatchedText = allMatchedTexts.joinToString(" ")
+            val timeOnly = isTimeOnlyPhrase(normalizedInput.text)
+            val ambiguousHour = containsAmbiguousHour(normalizedInput.text)
+            val explicitDate = containsExplicitDateReference(normalizedInput.text)
+            val preferFuture = !explicitDate && (timeOnly || ambiguousHour)
             
             val matchedRanges = findAllMatchedRanges(input, allMatchedTexts, normalizedInput)
 
@@ -47,17 +53,29 @@ class NattyDateParserService(
 
             val (startTime, endTime, state) = when {
                 dates.size >= 2 -> {
-                    val start = dateToZonedDateTime(dates[0])
-                    val end = dateToZonedDateTime(dates[1])
+                    val start = preferAfternoonForAmbiguousHour(
+                        dateToZonedDateTime(dates[0]),
+                        normalizedInput.text
+                    )
+                    val end = preferAfternoonForAmbiguousHour(
+                        dateToZonedDateTime(dates[1]),
+                        normalizedInput.text
+                    )
+                    // Adjust endpoints independently. Do not normalize the interval as a
+                    // whole: explicit dates are authoritative, while bare overnight times
+                    // may legitimately resolve to different calendar days.
                     Triple(
-                        adjustIfInPast(start, now),
-                        adjustIfInPast(end, now),
+                        adjustIfInPast(start, referenceNow, preferFuture),
+                        adjustIfInPast(end, referenceNow, preferFuture),
                         ParseState.RESOLVED
                     )
                 }
                 dates.size == 1 -> {
-                    val start = dateToZonedDateTime(dates[0])
-                    val adjustedStart = adjustIfInPast(start, now)
+                    val start = preferAfternoonForAmbiguousHour(
+                        dateToZonedDateTime(dates[0]),
+                        normalizedInput.text
+                    )
+                    val adjustedStart = adjustIfInPast(start, referenceNow, preferFuture)
                     val end = adjustedStart.plusHours(1)
                     Triple(adjustedStart, end, ParseState.RESOLVED)
                 }
@@ -92,15 +110,60 @@ class NattyDateParserService(
     }
 
     /**
-     * If the parsed datetime is in the past relative to 'now', adjust it to the next day.
-     * This handles cases like "3pm" when it's already past 3pm today.
+     * If a bare time is in the past relative to 'now', adjust that endpoint to the next day.
+     * Explicit date references are never adjusted. For a bare overnight range, this is
+     * intentionally applied to each endpoint rather than to the range as a whole.
      */
-    private fun adjustIfInPast(parsed: ZonedDateTime, now: ZonedDateTime): ZonedDateTime {
-        return if (parsed.isBefore(now)) {
-            parsed.plusDays(1)
-        } else {
-            parsed
+    private fun adjustIfInPast(
+        parsed: ZonedDateTime,
+        now: ZonedDateTime,
+        adjustPastTime: Boolean
+    ): ZonedDateTime {
+        if (!adjustPastTime) return parsed
+        val timeOnCurrentDate = parsed.withYear(now.year)
+            .withMonth(now.monthValue)
+            .withDayOfMonth(now.dayOfMonth)
+        return if (timeOnCurrentDate.isBefore(now)) timeOnCurrentDate.plusDays(1) else timeOnCurrentDate
+    }
+
+    /**
+     * Date references define their own day; only bare times are assumed to mean today.
+     */
+    private fun containsExplicitDateReference(text: String): Boolean {
+        val dateReferencePattern = Regex(
+            """\b(?:yesterday|today|tomorrow|tonight|last|next|this|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b""",
+            RegexOption.IGNORE_CASE
+        )
+        return dateReferencePattern.containsMatchIn(text)
+    }
+
+    private fun isTimeOnlyPhrase(text: String): Boolean {
+        if (containsExplicitDateReference(text)) return false
+        return Regex(
+            "^\\s*(?:from\\s+)?(?:at\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:am|pm|a|p)\\s*(?:(?:to|until)\\s+(?:at\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:am|pm|a|p))?\\s*$",
+            RegexOption.IGNORE_CASE
+        ).matches(text)
+    }
+
+    private fun containsAmbiguousHour(text: String): Boolean {
+        return Regex(
+            "\\b(?:at|from|to|until)\\s+(?:[1-9]|1[0-2])(?!\\d)(?:[:.]\\d{2})?(?!\\s*(?:am|pm|a|p)\\b)",
+            RegexOption.IGNORE_CASE
+        ).containsMatchIn(text)
+    }
+
+    private fun preferAfternoonForAmbiguousHour(
+        parsed: ZonedDateTime,
+        text: String
+    ): ZonedDateTime {
+        if (!containsAmbiguousHour(text)) return parsed
+
+        val preferredHour = when (parsed.hour) {
+            0 -> 12
+            in 1..11 -> parsed.hour + 12
+            else -> parsed.hour
         }
+        return parsed.withHour(preferredHour)
     }
 
     /**

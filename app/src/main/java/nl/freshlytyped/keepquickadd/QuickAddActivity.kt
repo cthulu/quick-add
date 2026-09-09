@@ -15,7 +15,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import nl.freshlytyped.keepquickadd.databinding.ActivityQuickAddBinding
@@ -35,6 +36,9 @@ class QuickAddActivity : AppCompatActivity() {
     private lateinit var repository: KeepRepository
     private var lists: List<String> = emptyList()
     private var selectedListIndex: Int = 0
+    private var hasObservedVisibleIme = false
+    private var isDestroyed = false
+    private val requestScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,15 +72,24 @@ class QuickAddActivity : AppCompatActivity() {
                 .show(WindowInsetsCompat.Type.ime())
         }
 
-        // When the keyboard is dismissed (IME inset drops to 0), close the popup.
-        // This handles back gesture, swipe-down-to-dismiss keyboard, etc.
+        // Ignore the initial hidden-insets dispatch before the requested keyboard is shown.
+        // Once the IME has been visible, a later hidden dispatch means the popup was dismissed.
         ViewCompat.setOnApplyWindowInsetsListener(activityBinding.root) { v, insets ->
             val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            if (!imeVisible) finish()
+            if (imeVisible) {
+                hasObservedVisibleIme = true
+            } else if (hasObservedVisibleIme) {
+                finish()
+            }
             ViewCompat.onApplyWindowInsets(v, insets)
         }
     }
 
+
+    override fun onDestroy() {
+        isDestroyed = true
+        super.onDestroy()
+    }
 
     // --- Spinner / list picker ---
 
@@ -142,16 +155,19 @@ class QuickAddActivity : AppCompatActivity() {
         if (selectedList == null) { finish(); return }
         settings.lastSelectedListName = selectedList
 
-        // GlobalScope so the coroutine survives Activity destruction
-        @Suppress("OPT_IN_USAGE")
-        GlobalScope.launch(Dispatchers.Main) {
+        // Keep the request alive independently of this Activity, but never update a
+        // view after the Activity has been destroyed.
+        requestScope.launch {
             val result = withContext(Dispatchers.IO) { repository.addItem(selectedList, itemText) }
+            if (isDestroyed) return@launch
             if (result.isSuccess) showConfirmation("✓ Added to \"$selectedList\"")
-            else showError("✗ ${result.exceptionOrNull()?.message ?: "Unknown error"}")
+            else showError("✗ ${result.exceptionOrNull()?.let { KeepFailureMapper.messageFor(it) }
+                ?: KeepFailureMapper.messageFor(KeepFailureCategory.SERVER)}")
         }
     }
 
     private fun showConfirmation(message: String) {
+        if (isDestroyed) return
         binding.layoutInput.visibility = View.GONE
         binding.tvConfirmation.apply {
             text = message
@@ -162,6 +178,7 @@ class QuickAddActivity : AppCompatActivity() {
     }
 
     private fun showError(message: String) {
+        if (isDestroyed) return
         binding.layoutInput.visibility = View.GONE
         binding.tvConfirmation.apply {
             text = message

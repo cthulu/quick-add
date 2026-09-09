@@ -52,6 +52,11 @@ quick-add/
 2. Let Gradle sync and download dependencies
 3. Run on a device or emulator (minSdk 26, targetSdk 36)
 
+The app intentionally permits cleartext HTTP globally for local, LAN, emulator, and
+Tailscale backends. Keep `app/src/main/res/xml/network_security_config.xml` enabled
+when using those backends; this is required for local development and private-network
+deployments.
+
 
 ## PubNub setup
 
@@ -99,3 +104,15 @@ Quick test from the command line:
 ```bash
 curl "https://ps.pndsn.com/v2/subscribe/{sub_key}/{channel}/0?tt=0"
 ```
+
+## Testing
+
+Run the host-side unit tests with:
+
+```bash
+./gradlew testDebugUnitTest
+```
+
+Device-only coverage is unavailable in this environment. Runtime permission dialogs,
+the Android calendar provider, and physical activity recreation still require a device
+or emulator.

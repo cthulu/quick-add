@@ -7,12 +7,15 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 @RunWith(RobolectricTestRunner::class)
 class KeepRepositoryTest {
@@ -68,6 +71,30 @@ class KeepRepositoryTest {
         }
         assertTrue(result.isFailure)
         assertNotNull(result.exceptionOrNull())
+        assertEquals(
+            KeepFailureMapper.messageFor(KeepFailureCategory.CONFIGURATION),
+            result.exceptionOrNull()?.message
+        )
+    }
+
+    @Test
+    fun `failure mapper categorizes network and server failures with safe messages`() {
+        val cases = listOf(
+            KeepFailureMapper.categoryFor(UnknownHostException("private.example.test")) to KeepFailureCategory.OFFLINE,
+            KeepFailureMapper.categoryFor(SocketTimeoutException("token=secret")) to KeepFailureCategory.TIMEOUT,
+            KeepFailureMapper.categoryFor(400) to KeepFailureCategory.CONFIGURATION,
+            KeepFailureMapper.categoryFor(503) to KeepFailureCategory.SERVER
+        )
+
+        cases.forEach { (actual, expected) -> assertEquals(expected, actual) }
+
+        val messages = cases.map { (category, _) -> KeepFailureMapper.messageFor(category) }
+        messages.forEach { message ->
+            assertFalse(message.contains("private.example.test"))
+            assertFalse(message.contains("token=secret"))
+            assertFalse(message.contains("UnknownHostException"))
+            assertFalse(message.contains("503"))
+        }
     }
 
     // --- addItem ---
@@ -93,12 +120,33 @@ class KeepRepositoryTest {
     }
 
     @Test
+    fun `addItem encodes reserved characters in PubNub URL path segments`() = runBlocking {
+        settings.publishKey = "pub/key?"
+        settings.subscribeKey = "sub#key%"
+        settings.channel = "channel/name?"
+        mockServer.enqueue(MockResponse().setResponseCode(200).setBody("[1,\"Sent\",\"123\"]"))
+        val baseUrl = mockServer.url("/").toString().trimEnd('/')
+
+        val result = withMockedBaseUrl(baseUrl) { repository.addItem("Inbox", "Test") }
+        assertTrue("addItem should succeed but got: ${result.exceptionOrNull()?.message}", result.isSuccess)
+
+        val req = mockServer.takeRequest()
+        assertEquals(
+            "/publish/pub%2Fkey%3F/sub%23key%25/0/channel%2Fname%3F/0",
+            req.path
+        )
+    }
+
+    @Test
     fun `addItem fails when publishKey not configured`() = runBlocking {
         settings.publishKey = ""
         val baseUrl = mockServer.url("/").toString().trimEnd('/')
         val result = withMockedBaseUrl(baseUrl) { repository.addItem("Inbox", "Test") }
         assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull()?.message?.contains("PubNub keys") == true)
+        assertEquals(
+            KeepFailureMapper.messageFor(KeepFailureCategory.CONFIGURATION),
+            result.exceptionOrNull()?.message
+        )
     }
 
     @Test
@@ -107,7 +155,10 @@ class KeepRepositoryTest {
         val baseUrl = mockServer.url("/").toString().trimEnd('/')
         val result = withMockedBaseUrl(baseUrl) { repository.addItem("Inbox", "Test") }
         assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull()?.message?.contains("Bad request") == true)
+        assertEquals(
+            KeepFailureMapper.messageFor(KeepFailureCategory.CONFIGURATION),
+            result.exceptionOrNull()?.message
+        )
     }
 
     @Test
@@ -116,7 +167,24 @@ class KeepRepositoryTest {
         val baseUrl = mockServer.url("/").toString().trimEnd('/')
         val result = withMockedBaseUrl(baseUrl) { repository.addItem("Inbox", "Test") }
         assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull()?.message?.contains("Authentication") == true)
+        assertEquals(
+            KeepFailureMapper.messageFor(KeepFailureCategory.CONFIGURATION),
+            result.exceptionOrNull()?.message
+        )
+    }
+
+    @Test
+    fun `addItem returns safe server message on 500`() = runBlocking {
+        mockServer.enqueue(MockResponse().setResponseCode(500).setBody("secret host and credentials"))
+        val baseUrl = mockServer.url("/").toString().trimEnd('/')
+        val result = withMockedBaseUrl(baseUrl) { repository.addItem("Inbox", "Test") }
+
+        assertTrue(result.isFailure)
+        assertEquals(
+            KeepFailureMapper.messageFor(KeepFailureCategory.SERVER),
+            result.exceptionOrNull()?.message
+        )
+        assertFalse(result.exceptionOrNull()?.message?.contains("500") == true)
     }
 
     @Test

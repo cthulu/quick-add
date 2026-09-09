@@ -68,4 +68,14 @@ class CalendarEventDraftTest {
         assertEquals(5..10, draft.matchedRanges[0])
         assertEquals(15..20, draft.matchedRanges[1])
     }
+
+    @Test
+    fun testTimeRangeValidation() {
+        val start = ZonedDateTime.of(2024, 1, 1, 10, 0, 0, 0, ZoneId.of("UTC"))
+
+        assertTrue(CalendarEventDraft("valid", parsedStart = start, parsedEnd = start.plusHours(1)).hasValidTimeRange())
+        assertTrue(CalendarEventDraft("default", parsedStart = start).hasValidTimeRange())
+        assertTrue(!CalendarEventDraft("equal", parsedStart = start, parsedEnd = start).hasValidTimeRange())
+        assertTrue(!CalendarEventDraft("reversed", parsedStart = start, parsedEnd = start.minusHours(1)).hasValidTimeRange())
+    }
 }
