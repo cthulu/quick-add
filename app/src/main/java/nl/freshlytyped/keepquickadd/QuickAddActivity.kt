@@ -9,6 +9,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -56,8 +57,7 @@ class QuickAddActivity : AppCompatActivity() {
         // Access the included layout's binding via the generated field on activityBinding.
         binding = activityBinding.popupCard
 
-        // Tapping the dim overlay dismisses the activity.
-        activityBinding.dimOverlay.setOnClickListener { finish() }
+        activityBinding.dimOverlay.setOnClickListener { confirmDismissIfNeeded() }
 
         repository = KeepRepository(this)
         settings = AppSettings(this)
@@ -142,6 +142,28 @@ class QuickAddActivity : AppCompatActivity() {
             if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
                 submitItem(); true
             } else false
+        }
+    }
+
+    private fun confirmDismissIfNeeded() {
+        if (binding.etItemText.text.toString().trim().isEmpty()) {
+            finish()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setMessage("Discard this item?")
+            .setPositiveButton("Discard") { _, _ -> finish() }
+            .setNegativeButton("Cancel") { _, _ -> restoreInputFocus() }
+            .setOnCancelListener { restoreInputFocus() }
+            .show()
+    }
+
+    private fun restoreInputFocus() {
+        binding.etItemText.requestFocus()
+        binding.etItemText.post {
+            WindowCompat.getInsetsController(window, binding.etItemText)
+                .show(WindowInsetsCompat.Type.ime())
         }
     }
 

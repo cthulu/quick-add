@@ -14,6 +14,7 @@ import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -81,7 +82,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         setContentView(activityBinding.root)
 
         binding = activityBinding.popupCard
-        activityBinding.dimOverlay.setOnClickListener { finish() }
+        activityBinding.dimOverlay.setOnClickListener { confirmDismissIfNeeded() }
 
         parserService = NattyDateParserService(zoneId = deviceZoneId)
         calendarRepository = CalendarRepository(this)
@@ -185,6 +186,28 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
     private fun setupButtons() {
         binding.btnSave.setOnClickListener { submitEvent() }
+    }
+
+    private fun confirmDismissIfNeeded() {
+        if (binding.etEventInput.text.toString().trim().isEmpty()) {
+            finish()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setMessage("Discard this event?")
+            .setPositiveButton("Discard") { _, _ -> finish() }
+            .setNegativeButton("Cancel") { _, _ -> restoreInputFocus() }
+            .setOnCancelListener { restoreInputFocus() }
+            .show()
+    }
+
+    private fun restoreInputFocus() {
+        binding.etEventInput.requestFocus()
+        binding.etEventInput.post {
+            WindowCompat.getInsetsController(window, binding.etEventInput)
+                .show(WindowInsetsCompat.Type.ime())
+        }
     }
 
     private fun setupCalendarSpinner() {
