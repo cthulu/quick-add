@@ -1,12 +1,11 @@
 # Step 10: Realtime Parsing and Inline Date Highlighting
 
 ## Goal
-Provide live visual feedback while typing by highlighting recognized date/time portions with a red background in the input area, and show parsed preview state.
+Provide live visual feedback while typing by highlighting recognized date/time portions with a red background in the input area.
 
 ## Scope
 - Parse continuously as user types.
 - Highlight matched date/time spans with red background.
-- Render parse status and resolved datetime preview.
 - Handle rapid typing without jank.
 
 ## Non-Goals
@@ -45,10 +44,8 @@ Highlight style:
 ## Deliverables
 - Live parser integration with debouncing.
 - Red inline highlight for recognized date/time tokens.
-- Parse state/preview indicator in popup.
 
 ## Acceptance Criteria
 - User sees red highlight appear/disappear as date phrases are typed/edited.
 - Highlight remains stable during fast typing and deletions.
-- Parse preview updates in near real-time.
 - No crashes or ANRs from parsing loop.

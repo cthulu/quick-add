@@ -11,6 +11,11 @@ object PermissionHelper {
         return hasReadCalendarPermission(context) && hasWriteCalendarPermission(context)
     }
 
+    fun hasPermission(context: Context, permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(context, permission) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
     fun hasReadCalendarPermission(context: Context): Boolean {
         return ContextCompat.checkSelfPermission(
             context,
@@ -30,5 +35,14 @@ object PermissionHelper {
             Manifest.permission.READ_CALENDAR,
             Manifest.permission.WRITE_CALENDAR
         )
+    }
+
+    fun hasTemporaryDenial(
+        context: Context,
+        shouldShowRationale: (String) -> Boolean
+    ): Boolean {
+        return getRequiredPermissions().any { permission ->
+            !hasPermission(context, permission) && shouldShowRationale(permission)
+        }
     }
 }

@@ -87,3 +87,11 @@ State guidelines:
   - "Meeting tomorrow at 3pm"
 - Parsed start time resolves correctly in local timezone.
 - App remains responsive while parsing.
+
+### Range Endpoint Policy
+
+Range endpoints are adjusted independently. Bare time endpoints may roll to the next
+day when they are already past relative to the parse reference time, which preserves
+overnight ranges such as `11pm to 1am`. Explicit date references remain authoritative
+for their endpoint. The parser must not shift or normalize an entire interval solely
+because its end is earlier than its start.

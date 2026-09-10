@@ -279,6 +279,118 @@ class NattyDateParserServiceTest {
     }
 
     @Test
+    fun testTimeOnlyInPastRollsToNextDayWithFixedNow() {
+        val zone = ZoneId.of("America/New_York")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val now = ZonedDateTime.of(2025, 6, 16, 17, 0, 0, 0, zone)
+
+        val result = fixedParser.parse("3pm", now)
+
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertEquals(now.toLocalDate().plusDays(1), result.start!!.toLocalDate())
+        assertEquals(15, result.start!!.hour)
+    }
+
+    @Test
+    fun testTimeOnlyInFutureStaysOnSameDayWithFixedNow() {
+        val zone = ZoneId.of("America/New_York")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val now = ZonedDateTime.of(2025, 6, 16, 14, 0, 0, 0, zone)
+
+        val result = fixedParser.parse("at 3pm", now)
+
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertEquals(now.toLocalDate(), result.start!!.toLocalDate())
+        assertEquals(15, result.start!!.hour)
+    }
+
+    @Test
+    fun testAmbiguousHourInEventDefaultsToAfternoonToday() {
+        val zone = ZoneId.of("America/New_York")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val now = ZonedDateTime.of(2025, 6, 16, 11, 0, 0, 0, zone)
+
+        val result = fixedParser.parse("Lunch at 1", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertEquals(now.toLocalDate(), result.start!!.toLocalDate())
+        assertEquals(13, result.start!!.hour)
+        assertEquals("Lunch", result.titleText)
+    }
+
+    @Test
+    fun testAmbiguousHourInEventMovesToTomorrowAfterItHasPassed() {
+        val zone = ZoneId.of("America/New_York")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val now = ZonedDateTime.of(2025, 6, 16, 14, 0, 0, 0, zone)
+
+        val result = fixedParser.parse("Lunch at 1", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertEquals(now.toLocalDate().plusDays(1), result.start!!.toLocalDate())
+        assertEquals(13, result.start!!.hour)
+    }
+
+    @Test
+    fun testExplicitPastDatesStayOnTheirParsedDayWithFixedNow() {
+        val zone = ZoneId.of("America/New_York")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val now = ZonedDateTime.of(2025, 6, 16, 17, 0, 0, 0, zone)
+
+        val yesterday = fixedParser.parse("yesterday at 3pm", now)
+        val lastMonday = fixedParser.parse("last Monday at 3pm", now)
+
+        assertEquals(now.toLocalDate().minusDays(1), yesterday.start!!.toLocalDate())
+        assertEquals(now.toLocalDate().minusDays(7), lastMonday.start!!.toLocalDate())
+    }
+
+    @Test
+    fun testOvernightTimeRangeAdjustsEndpointsIndependently() {
+        val zone = ZoneId.of("America/New_York")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val now = ZonedDateTime.of(2025, 6, 16, 17, 0, 0, 0, zone)
+
+        val result = fixedParser.parse("11pm to 1am", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertEquals(now.toLocalDate(), result.start!!.toLocalDate())
+        assertEquals(23, result.start!!.hour)
+        assertEquals(now.toLocalDate().plusDays(1), result.end!!.toLocalDate())
+        assertEquals(1, result.end!!.hour)
+    }
+
+    @Test
+    fun testMixedDateRangeKeepsEachExplicitEndpointDate() {
+        val zone = ZoneId.of("America/New_York")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val now = ZonedDateTime.of(2025, 6, 16, 17, 0, 0, 0, zone)
+
+        val result = fixedParser.parse("yesterday at 11pm to tomorrow at 1am", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertEquals(now.toLocalDate().minusDays(1), result.start!!.toLocalDate())
+        assertEquals(23, result.start!!.hour)
+        assertEquals(now.toLocalDate().plusDays(1), result.end!!.toLocalDate())
+        assertEquals(1, result.end!!.hour)
+    }
+
+    @Test
+    fun testReferenceTimeIsConvertedToParserZoneWithoutRelabeling() {
+        val zone = ZoneId.of("America/New_York")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val nowInUtc = ZonedDateTime.of(2025, 6, 16, 19, 0, 0, 0, ZoneId.of("UTC"))
+
+        val result = fixedParser.parse("3pm", nowInUtc)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertEquals(zone, result.start!!.zone)
+        assertEquals(15, result.start!!.hour)
+        assertEquals(nowInUtc.toInstant(), result.start!!.toInstant())
+    }
+
+    @Test
     fun testParseMultiplePhrases() {
         val testCases = mapOf(
             "tomorrow" to true,

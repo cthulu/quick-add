@@ -14,6 +14,7 @@ class AppSettings(context: Context) {
         private const val KEY_LAST_LIST_NAME = "last_selected_list_name"
         private const val KEY_LIST_COUNT = "list_count"
         private const val KEY_LIST_PREFIX = "list_name_"
+        private const val KEY_HIDDEN_CALENDAR_IDS = "hidden_calendar_ids"
         const val DEFAULT_LIST_NAME = "Shopping"
         const val DEFAULT_CHANNEL = "channel-ha"
         // Not const so tests can override via reflection (compiler would inline a const).
@@ -59,7 +60,7 @@ class AppSettings(context: Context) {
     }
 
     /**
-     * Saves the list names. The first entry is always kept even if empty.
+     * Saves the list names. The first nonblank entry keeps its whitespace; later entries are trimmed.
      */
     fun saveLists(names: List<String>) {
         val cleaned = names.mapIndexed { i, name ->
@@ -72,4 +73,15 @@ class AppSettings(context: Context) {
             apply()
         }
     }
+
+    var hiddenCalendarIds: Set<Long>
+        get() = prefs.getString(KEY_HIDDEN_CALENDAR_IDS, "")
+            ?.split(',')
+            ?.mapNotNull { it.trim().toLongOrNull() }
+            ?.filter { it >= 0 }
+            ?.toSet()
+            ?: emptySet()
+        set(value) = prefs.edit()
+            .putString(KEY_HIDDEN_CALENDAR_IDS, value.filter { it >= 0 }.distinct().joinToString(","))
+            .apply()
 }
