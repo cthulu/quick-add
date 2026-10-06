@@ -307,6 +307,48 @@ class NattyDateParserServiceTest {
     }
 
     @Test
+    fun testBareTimeWithTitleInPastRollsToNextDay() {
+        val zone = ZoneId.of("America/New_York")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val now = ZonedDateTime.of(2025, 6, 16, 14, 0, 0, 0, zone)
+
+        val result = fixedParser.parse("lunch at 1pm", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertEquals(now.toLocalDate().plusDays(1), result.start!!.toLocalDate())
+        assertEquals(13, result.start!!.hour)
+        assertEquals("lunch", result.titleText)
+    }
+
+    @Test
+    fun testBareTimeWithTitleInFutureStaysOnSameDay() {
+        val zone = ZoneId.of("America/New_York")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val now = ZonedDateTime.of(2025, 6, 16, 10, 0, 0, 0, zone)
+
+        val result = fixedParser.parse("lunch at 1pm", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertEquals(now.toLocalDate(), result.start!!.toLocalDate())
+        assertEquals(13, result.start!!.hour)
+    }
+
+    @Test
+    fun testBareTimeWithExplicitPastDateIsNotRolledForward() {
+        val zone = ZoneId.of("America/New_York")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val now = ZonedDateTime.of(2025, 6, 16, 14, 0, 0, 0, zone)
+
+        val result = fixedParser.parse("team lunch yesterday at 3pm", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertNotNull(result.start)
+        // Explicit date keeps the parsed (past) day; must not roll to today
+        assertEquals(now.toLocalDate().minusDays(1), result.start!!.toLocalDate())
+        assertEquals(15, result.start!!.hour)
+    }
+
+    @Test
     fun testAmbiguousHourInEventDefaultsToAfternoonToday() {
         val zone = ZoneId.of("America/New_York")
         val fixedParser = NattyDateParserService(InputNormalizer(), zone)
