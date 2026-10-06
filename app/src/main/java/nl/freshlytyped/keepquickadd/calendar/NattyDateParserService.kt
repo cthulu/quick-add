@@ -40,7 +40,10 @@ class NattyDateParserService(
             val timeOnly = isTimeOnlyPhrase(normalizedInput.text)
             val ambiguousHour = containsAmbiguousHour(normalizedInput.text)
             val explicitDate = containsExplicitDateReference(normalizedInput.text)
-            val preferFuture = !explicitDate && (timeOnly || ambiguousHour)
+            // A bare time may be embedded in a longer title (e.g. "lunch at 1pm"),
+            // so also detect it via the matched text, not just the whole input.
+            val bareTimeMatch = allMatchedTexts.any { isTimeOnlyPhrase(it) }
+            val preferFuture = !explicitDate && (timeOnly || ambiguousHour || bareTimeMatch)
             
             val matchedRanges = findAllMatchedRanges(input, allMatchedTexts, normalizedInput)
 
