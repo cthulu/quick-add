@@ -13,6 +13,7 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -58,7 +59,6 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private var parseJob: Job? = null
     private var inputRevision = 0
     private var permissionsRequested = false
-    private var hasObservedVisibleIme = false
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -99,15 +99,18 @@ class CalendarQuickAddActivity : AppCompatActivity() {
                 .show(WindowInsetsCompat.Type.ime())
         }
 
-        ViewCompat.setOnApplyWindowInsetsListener(activityBinding.root) { v, insets ->
-            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            if (imeVisible) {
-                hasObservedVisibleIme = true
-            } else if (hasObservedVisibleIme) {
-                finish()
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val imeVisible = ViewCompat.getRootWindowInsets(binding.etEventInput)
+                    ?.isVisible(WindowInsetsCompat.Type.ime()) == true
+                if (imeVisible) {
+                    WindowCompat.getInsetsController(window, binding.etEventInput)
+                        .hide(WindowInsetsCompat.Type.ime())
+                } else {
+                    confirmDismissIfNeeded()
+                }
             }
-            ViewCompat.onApplyWindowInsets(v, insets)
-        }
+        })
 
         if (!permissionsRequested) {
             requestCalendarPermissionsIfNeeded()

@@ -9,6 +9,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -37,7 +38,6 @@ class QuickAddActivity : AppCompatActivity() {
     private lateinit var repository: KeepRepository
     private var lists: List<String> = emptyList()
     private var selectedListIndex: Int = 0
-    private var hasObservedVisibleIme = false
     private var isDestroyed = false
     private val requestScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -72,17 +72,18 @@ class QuickAddActivity : AppCompatActivity() {
                 .show(WindowInsetsCompat.Type.ime())
         }
 
-        // Ignore the initial hidden-insets dispatch before the requested keyboard is shown.
-        // Once the IME has been visible, a later hidden dispatch means the popup was dismissed.
-        ViewCompat.setOnApplyWindowInsetsListener(activityBinding.root) { v, insets ->
-            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            if (imeVisible) {
-                hasObservedVisibleIme = true
-            } else if (hasObservedVisibleIme) {
-                finish()
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val imeVisible = ViewCompat.getRootWindowInsets(binding.etItemText)
+                    ?.isVisible(WindowInsetsCompat.Type.ime()) == true
+                if (imeVisible) {
+                    WindowCompat.getInsetsController(window, binding.etItemText)
+                        .hide(WindowInsetsCompat.Type.ime())
+                } else {
+                    confirmDismissIfNeeded()
+                }
             }
-            ViewCompat.onApplyWindowInsets(v, insets)
-        }
+        })
     }
 
 
