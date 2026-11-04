@@ -1,5 +1,6 @@
 package nl.freshlytyped.keepquickadd
 
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.widget.CheckBox
@@ -8,6 +9,8 @@ import android.widget.ImageButton
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.color.DynamicColors
+import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,6 +53,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.etApiKey.setText(settings.apiKey)
         binding.etChannel.setText(settings.channel)
         binding.cbOpenCalendarEventDraft.isChecked = settings.openCalendarEventDraft
+        binding.cbHideCalendarSettingsButton.isChecked = settings.hideCalendarSettingsButton
+        applyCalendarCheckboxAccent()
         loadListInputs()
         requestCalendarPermissionsIfNeeded()
 
@@ -136,6 +141,29 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun applyCalendarCheckboxAccent() {
+        val dynamicContext = DynamicColors.wrapContextIfAvailable(this)
+        val accentColor = MaterialColors.getColor(
+            dynamicContext,
+            com.google.android.material.R.attr.colorPrimary,
+            getColor(R.color.primary)
+        )
+        val uncheckedColor = getColor(R.color.on_surface_secondary)
+        val disabledColor = getColor(R.color.gray)
+        val tint = ColorStateList(
+            arrayOf(
+                intArrayOf(android.R.attr.state_enabled, android.R.attr.state_checked),
+                intArrayOf(android.R.attr.state_enabled, -android.R.attr.state_checked),
+                intArrayOf(-android.R.attr.state_enabled, android.R.attr.state_checked),
+                intArrayOf()
+            ),
+            intArrayOf(accentColor, uncheckedColor, disabledColor, disabledColor)
+        )
+
+        binding.cbOpenCalendarEventDraft.buttonTintList = tint
+        binding.cbHideCalendarSettingsButton.buttonTintList = tint
+    }
+
     // --- Connection test ---
 
     private fun testConnection() {
@@ -197,6 +225,7 @@ class SettingsActivity : AppCompatActivity() {
         settings.channel = channel
         settings.hiddenCalendarIds = hiddenCalendarIds
         settings.openCalendarEventDraft = binding.cbOpenCalendarEventDraft.isChecked
+        settings.hideCalendarSettingsButton = binding.cbHideCalendarSettingsButton.isChecked
         settings.saveLists(lists)
         Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
         finish()

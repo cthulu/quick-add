@@ -25,14 +25,17 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.color.DynamicColors
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import nl.freshlytyped.keepquickadd.R
 import nl.freshlytyped.keepquickadd.AppSettings
+import nl.freshlytyped.keepquickadd.R
+import nl.freshlytyped.keepquickadd.SettingsActivity
 import nl.freshlytyped.keepquickadd.databinding.ActivityCalendarQuickAddBinding
 import nl.freshlytyped.keepquickadd.databinding.LayoutCalendarFloatingWidgetBinding
 import java.time.LocalDate
@@ -74,6 +77,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DynamicColors.applyToActivityIfAvailable(this)
 
         window.setSoftInputMode(
             WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
@@ -157,8 +161,16 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         val editable = editText.text
         if (editable.toString() != input) return
 
-        val highlightColor = ContextCompat.getColor(this, R.color.primary_dark)
-        val textColor = editText.currentTextColor
+        val highlightColor = MaterialColors.getColor(
+            this,
+            com.google.android.material.R.attr.colorPrimaryContainer,
+            ContextCompat.getColor(this, R.color.primary_light)
+        )
+        val textColor = MaterialColors.getColor(
+            this,
+            com.google.android.material.R.attr.colorOnPrimaryContainer,
+            ContextCompat.getColor(this, R.color.black)
+        )
 
         editable.getSpans(0, editable.length, RoundedBackgroundSpan::class.java)
             .forEach { editable.removeSpan(it) }
@@ -190,6 +202,14 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
+        binding.btnSettings.visibility = if (appSettings.hideCalendarSettingsButton) {
+            View.GONE
+        } else {
+            View.VISIBLE
+        }
+        binding.btnSettings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
         binding.btnSave.setOnClickListener { submitEvent() }
     }
 
@@ -395,6 +415,13 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
         binding.layoutInput.visibility = android.view.View.GONE
         binding.tvConfirmation.text = message
+        binding.tvConfirmation.setTextColor(
+            MaterialColors.getColor(
+                this,
+                com.google.android.material.R.attr.colorPrimary,
+                ContextCompat.getColor(this, R.color.primary)
+            )
+        )
         binding.tvConfirmation.visibility = android.view.View.VISIBLE
         binding.tvConfirmation.movementMethod = LinkMovementMethod.getInstance()
         binding.tvConfirmation.setOnClickListener {

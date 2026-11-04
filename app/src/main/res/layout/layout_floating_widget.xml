@@ -21,7 +21,7 @@
         android:gravity="center"
         android:visibility="gone" />
 
-    <!-- Input row: text input + list icon + send button -->
+    <!-- Input row: text input, list icon, settings, and send button -->
     <LinearLayout
         android:id="@+id/layoutInput"
         android:layout_width="match_parent"
@@ -74,6 +74,16 @@
 
         </FrameLayout>
 
+        <ImageButton
+            android:id="@+id/btnSettings"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Settings"
+            android:padding="8dp"
+            android:src="@drawable/ic_settings" />
+
         <!-- Send button -->
         <ImageButton
             android:id="@+id/btnAdd"
@@ -84,7 +94,6 @@
             android:src="@drawable/ic_send"
             android:contentDescription="Add item"
             android:padding="8dp" />
-
     </LinearLayout>
 
 </LinearLayout>

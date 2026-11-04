@@ -169,4 +169,16 @@ class AppSettingsTest {
 
         assertTrue(AppSettings(context).openCalendarEventDraft)
     }
+
+    @Test
+    fun `calendar settings button is visible by default`() {
+        assertFalse(settings.hideCalendarSettingsButton)
+    }
+
+    @Test
+    fun `calendar settings button visibility preference persists`() {
+        settings.hideCalendarSettingsButton = true
+
+        assertTrue(AppSettings(context).hideCalendarSettingsButton)
+    }
 }

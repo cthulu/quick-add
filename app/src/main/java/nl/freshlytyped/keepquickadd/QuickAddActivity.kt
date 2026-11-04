@@ -1,5 +1,6 @@
 package nl.freshlytyped.keepquickadd
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.KeyEvent
@@ -130,6 +131,9 @@ class QuickAddActivity : AppCompatActivity() {
 
     private fun setupButtons() {
         val b = binding
+        b.btnSettings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
         b.btnAdd.setOnClickListener { submitItem() }
         b.etItemText.setOnEditorActionListener { _, actionId, event ->
             if (actionId == EditorInfo.IME_ACTION_DONE ||

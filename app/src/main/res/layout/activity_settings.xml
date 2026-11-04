@@ -165,6 +165,13 @@
             android:textColor="@color/on_surface_secondary"
             android:textSize="12sp" />
 
+        <CheckBox
+            android:id="@+id/cbHideCalendarSettingsButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Hide settings button in Calendar Quick Add" />
+
         <!-- Divider -->
         <View
             android:layout_width="match_parent"

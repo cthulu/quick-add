@@ -16,6 +16,7 @@ class AppSettings(context: Context) {
         private const val KEY_LIST_PREFIX = "list_name_"
         private const val KEY_HIDDEN_CALENDAR_IDS = "hidden_calendar_ids"
         private const val KEY_OPEN_CALENDAR_EVENT_DRAFT = "open_calendar_event_draft"
+        private const val KEY_HIDE_CALENDAR_SETTINGS_BUTTON = "hide_calendar_settings_button"
         const val DEFAULT_LIST_NAME = "Shopping"
         const val DEFAULT_CHANNEL = "channel-ha"
         // Not const so tests can override via reflection (compiler would inline a const).
@@ -89,4 +90,8 @@ class AppSettings(context: Context) {
     var openCalendarEventDraft: Boolean
         get() = prefs.getBoolean(KEY_OPEN_CALENDAR_EVENT_DRAFT, false)
         set(value) = prefs.edit().putBoolean(KEY_OPEN_CALENDAR_EVENT_DRAFT, value).apply()
+
+    var hideCalendarSettingsButton: Boolean
+        get() = prefs.getBoolean(KEY_HIDE_CALENDAR_SETTINGS_BUTTON, false)
+        set(value) = prefs.edit().putBoolean(KEY_HIDE_CALENDAR_SETTINGS_BUTTON, value).apply()
 }
