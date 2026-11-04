@@ -31,7 +31,7 @@ class SettingsActivity : AppCompatActivity() {
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         if (PermissionHelper.hasCalendarPermissions(this)) loadCalendars()
-        else binding.tvCalendarStatus.text = "Calendar permission is required to show calendars."
+        else binding.tvCalendarStatus.text = getString(R.string.settings_calendar_permission_required)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,7 +40,7 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         supportActionBar?.apply {
-            title = "Settings"
+            title = getString(R.string.settings_title)
             setDisplayHomeAsUpEnabled(true)
         }
 
@@ -89,7 +89,7 @@ class SettingsActivity : AppCompatActivity() {
             btnRemove.setOnClickListener { binding.listInputsContainer.removeView(row) }
         } else {
             btnRemove.visibility = android.view.View.INVISIBLE
-            etName.hint = "Default list (required)"
+            etName.hint = getString(R.string.settings_default_list_hint)
         }
 
         binding.listInputsContainer.addView(row)
@@ -122,14 +122,14 @@ class SettingsActivity : AppCompatActivity() {
         val hiddenIds = settings.hiddenCalendarIds
 
         if (calendars.isEmpty()) {
-            binding.tvCalendarStatus.text = "No writable calendars found."
+            binding.tvCalendarStatus.text = getString(R.string.settings_no_writable_calendars)
             return
         }
 
-        binding.tvCalendarStatus.text = "Unselect calendars to hide them from calendar quick add."
+        binding.tvCalendarStatus.text = getString(R.string.settings_calendar_visibility_summary)
         calendars.forEach { calendar ->
             val checkbox = CheckBox(this).apply {
-                text = "${calendar.displayName} (${calendar.id})"
+                text = getString(R.string.settings_calendar_checkbox_label, calendar.displayName, calendar.id)
                 isChecked = calendar.id !in hiddenIds
                 layoutParams = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
@@ -173,11 +173,11 @@ class SettingsActivity : AppCompatActivity() {
         val channel = binding.etChannel.text.toString().trim().ifBlank { AppSettings.DEFAULT_CHANNEL }
 
         if (pub.isEmpty() || sub.isEmpty()) {
-            Toast.makeText(this, "Publish + Subscribe keys are required", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.settings_publish_subscribe_required, Toast.LENGTH_SHORT).show()
             return
         }
 
-        binding.tvConnectionStatus.text = "Testing connection..."
+        binding.tvConnectionStatus.text = getString(R.string.settings_connection_testing)
         binding.tvConnectionStatus.setTextColor(getColor(R.color.gray))
         binding.btnTestConnection.isEnabled = false
 
@@ -185,13 +185,13 @@ class SettingsActivity : AppCompatActivity() {
             val result = repository.testConnection(pub, sub, api, channel)
             binding.btnTestConnection.isEnabled = true
             if (result.isSuccess) {
-                binding.tvConnectionStatus.text = "✓ Connection successful"
+                binding.tvConnectionStatus.text = getString(R.string.settings_connection_successful)
                 binding.tvConnectionStatus.setTextColor(getColor(R.color.primary_dark))
             } else {
                 val message = result.exceptionOrNull()
                     ?.let(KeepFailureMapper::messageFor)
                     ?: KeepFailureMapper.messageFor(KeepFailureCategory.SERVER)
-                binding.tvConnectionStatus.text = "✗ $message"
+                binding.tvConnectionStatus.text = getString(R.string.settings_connection_failed, message)
                 binding.tvConnectionStatus.setTextColor(getColor(android.R.color.holo_red_dark))
             }
         }
@@ -209,13 +209,13 @@ class SettingsActivity : AppCompatActivity() {
             .plus(calendarCheckboxes.filterValues { !it.isChecked }.keys)
 
         if (pub.isEmpty() || sub.isEmpty()) {
-            Toast.makeText(this, "Publish + Subscribe keys are required", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.settings_publish_subscribe_required, Toast.LENGTH_SHORT).show()
             return
         }
 
         val lists = collectListNames()
         if (lists.firstOrNull().isNullOrBlank()) {
-            Toast.makeText(this, "First list name is required", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.settings_first_list_required, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -227,7 +227,7 @@ class SettingsActivity : AppCompatActivity() {
         settings.openCalendarEventDraft = binding.cbOpenCalendarEventDraft.isChecked
         settings.hideCalendarSettingsButton = binding.cbHideCalendarSettingsButton.isChecked
         settings.saveLists(lists)
-        Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, R.string.settings_saved, Toast.LENGTH_SHORT).show()
         finish()
     }
 }

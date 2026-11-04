@@ -11,20 +11,91 @@
         android:orientation="vertical"
         android:padding="24dp">
 
-        <!-- PubNub section -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="PubNub"
+            android:text="@string/settings_calendars"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="@color/on_surface"
             android:layout_marginBottom="4dp" />
 
         <TextView
+            android:id="@+id/tvCalendarStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Publish key, subscribe key and (optional) auth/API key from your PubNub Admin Portal."
+            android:text="@string/settings_loading_calendars"
+            android:textSize="12sp"
+            android:textColor="@color/on_surface_secondary"
+            android:layout_marginBottom="4dp" />
+
+        <LinearLayout
+            android:id="@+id/calendarInputsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <CheckBox
+            android:id="@+id/cbOpenCalendarEventDraft"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/settings_open_events_for_review" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="32dp"
+            android:text="@string/settings_open_events_for_review_summary"
+            android:textColor="@color/on_surface_secondary"
+            android:textSize="12sp" />
+
+        <CheckBox
+            android:id="@+id/cbHideCalendarSettingsButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_hide_quick_add_settings" />
+
+        <TextView
+            android:id="@+id/textView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="32dp"
+            android:text="@string/settings_hide_quick_add_settings_summary"
+            android:textColor="@color/on_surface_secondary"
+            android:textSize="12sp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/surface_variant"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_keep"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/on_surface"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_pubnub_listener"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/on_surface"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_pubnub_description"
             android:textSize="12sp"
             android:textColor="@color/on_surface_secondary"
             android:layout_marginBottom="12dp" />
@@ -32,7 +103,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Publish key"
+            android:text="@string/settings_publish_key"
             android:textSize="12sp"
             android:textColor="@color/on_surface_secondary"
             android:layout_marginBottom="2dp" />
@@ -42,7 +113,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/edittext_background"
-            android:hint="pub-c-..."
+            android:hint="@string/settings_publish_key_hint"
             android:inputType="textNoSuggestions"
             android:padding="12dp"
             android:textSize="14sp"
@@ -52,7 +123,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Subscribe key"
+            android:text="@string/settings_subscribe_key"
             android:textSize="12sp"
             android:textColor="@color/on_surface_secondary"
             android:layout_marginBottom="2dp" />
@@ -62,7 +133,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/edittext_background"
-            android:hint="sub-c-..."
+            android:hint="@string/settings_subscribe_key_hint"
             android:inputType="textNoSuggestions"
             android:padding="12dp"
             android:textSize="14sp"
@@ -72,7 +143,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="API/auth key (optional)"
+            android:text="@string/settings_api_auth_key_optional"
             android:textSize="12sp"
             android:textColor="@color/on_surface_secondary"
             android:layout_marginBottom="2dp" />
@@ -82,7 +153,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/edittext_background"
-            android:hint="(blank if Access Manager not enabled)"
+            android:hint="@string/settings_api_auth_key_hint"
             android:inputType="textPassword"
             android:padding="12dp"
             android:textSize="14sp"
@@ -92,7 +163,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Channel"
+            android:text="@string/settings_channel"
             android:textSize="12sp"
             android:textColor="@color/on_surface_secondary"
             android:layout_marginBottom="2dp" />
@@ -102,7 +173,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/edittext_background"
-            android:hint="channel-ha"
+            android:hint="@string/settings_channel_hint"
             android:inputType="textNoSuggestions"
             android:padding="12dp"
             android:textSize="14sp"
@@ -121,79 +192,24 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Test Connection"
+            android:text="@string/settings_test_connection"
             android:backgroundTint="@color/surface_variant"
             android:textColor="@color/on_surface" />
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Calendars"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="@color/on_surface"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:id="@+id/tvCalendarStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Loading calendars..."
-            android:textSize="12sp"
-            android:textColor="@color/on_surface_secondary"
-            android:layout_marginBottom="4dp" />
-
-        <LinearLayout
-            android:id="@+id/calendarInputsContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical" />
-
-        <CheckBox
-            android:id="@+id/cbOpenCalendarEventDraft"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Open events in Calendar for review" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="32dp"
-            android:text="Open a pre-filled event instead of saving directly. The saved calendar is included when available, but the calendar app may ignore it."
-            android:textColor="@color/on_surface_secondary"
-            android:textSize="12sp" />
-
-        <CheckBox
-            android:id="@+id/cbHideCalendarSettingsButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Hide settings button in Calendar Quick Add" />
-
-        <!-- Divider -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/surface_variant"
-            android:layout_marginTop="24dp"
-            android:layout_marginBottom="24dp" />
-
-        <!-- Lists section -->
-        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Keep Lists"
-            android:textSize="16sp"
+            android:text="@string/settings_keep_lists"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:textColor="@color/on_surface"
+            android:layout_marginTop="20dp"
             android:layout_marginBottom="4dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Names of Google Keep lists to add items to. The first entry is required and cannot be removed."
+            android:text="@string/settings_keep_lists_description"
             android:textSize="12sp"
             android:textColor="@color/on_surface_secondary"
             android:layout_marginBottom="12dp" />
@@ -209,17 +225,16 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="+ Add List"
+            android:text="@string/settings_add_list"
             android:backgroundTint="@color/surface_variant"
             android:textColor="@color/on_surface" />
 
-        <!-- Save button -->
         <Button
             android:id="@+id/btnSaveUrl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="32dp"
-            android:text="Save"
+            android:text="@string/settings_save"
             android:backgroundTint="@color/primary"
             android:textColor="@color/on_surface"
             android:textStyle="bold" />

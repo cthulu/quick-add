@@ -13,7 +13,7 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:background="@drawable/edittext_background"
-        android:hint="List name"
+        android:hint="@string/settings_list_name_hint"
         android:inputType="text"
         android:padding="12dp"
         android:textSize="14sp"
@@ -26,7 +26,7 @@
         android:layout_marginStart="8dp"
         android:background="@android:color/transparent"
         android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:contentDescription="Remove list"
+        android:contentDescription="@string/settings_remove_list"
         app:tint="@color/gray"
         android:padding="8dp" />
 

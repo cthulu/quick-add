@@ -6,6 +6,7 @@ Quick Add is an Android app that:
 # Build Commands
 - `./gradlew assembleDebug` - Build the debug version of the app.
 - `./gradlew testDebugUnitTest` - Run unit tests.
+- `./gradlew lint` - Run Android lint checks.
 
 # Code Style Guidelines
 - Use camelCase for variable names.
@@ -28,3 +29,4 @@ Quick Add is an Android app that:
 
 # Testing rules
 - Create unit tests where possible
+- Run `./gradlew lint` before pushing changes.
