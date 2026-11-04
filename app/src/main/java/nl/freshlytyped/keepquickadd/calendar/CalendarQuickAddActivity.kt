@@ -1,9 +1,11 @@
 package nl.freshlytyped.keepquickadd.calendar
 
+import android.Manifest
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.provider.CalendarContract
 import android.text.Editable
 import android.text.method.LinkMovementMethod
 import android.util.Log
@@ -63,7 +65,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
-        if (PermissionHelper.hasCalendarPermissions(this)) {
+        if (hasCalendarAccessForCurrentMode()) {
             loadCalendars()
         } else {
             showPermissionDeniedMessage(hasTemporaryDenial())
@@ -231,12 +233,26 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
     private fun requestCalendarPermissionsIfNeeded() {
         permissionsRequested = true
-        if (!PermissionHelper.hasCalendarPermissions(this)) {
-            permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
+        if (!hasCalendarAccessForCurrentMode()) {
+            permissionLauncher.launch(getCalendarPermissionsForCurrentMode())
         } else {
             loadCalendars()
         }
     }
+
+    private fun getCalendarPermissionsForCurrentMode(): Array<String> =
+        if (appSettings.openCalendarEventDraft) {
+            arrayOf(Manifest.permission.READ_CALENDAR)
+        } else {
+            PermissionHelper.getRequiredPermissions()
+        }
+
+    private fun hasCalendarAccessForCurrentMode(): Boolean =
+        if (appSettings.openCalendarEventDraft) {
+            PermissionHelper.hasReadCalendarPermission(this)
+        } else {
+            PermissionHelper.hasCalendarPermissions(this)
+        }
 
     private fun loadCalendars() {
         lifecycleScope.launch(Dispatchers.Default) {
@@ -294,6 +310,11 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             return
         }
 
+        if (appSettings.openCalendarEventDraft) {
+            openCalendarEventDraft(draft)
+            return
+        }
+
         if (!PermissionHelper.hasCalendarPermissions(this)) {
             requestCalendarPermissionsIfNeeded()
             return
@@ -312,6 +333,28 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         }
 
         createEvent(draft, calendar)
+    }
+
+    private fun openCalendarEventDraft(draft: CalendarEventDraft) {
+        val start = draft.parsedStart ?: return
+        val end = draft.parsedEnd ?: start.plusHours(1)
+        val intent = Intent(Intent.ACTION_INSERT).apply {
+            data = CalendarContract.Events.CONTENT_URI
+            putExtra(CalendarContract.Events.TITLE, draft.titleText ?: "Event")
+            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.toInstant().toEpochMilli())
+            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end.toInstant().toEpochMilli())
+            (selectedCalendar?.id ?: calendarPreferences.getSelectedCalendarId())?.let { calendarId ->
+                putExtra(CalendarContract.Events.CALENDAR_ID, calendarId)
+            }
+        }
+
+        try {
+            startActivity(intent)
+            finish()
+        } catch (e: Exception) {
+            Log.e("CalendarQuickAdd", "Cannot open calendar event draft", e)
+            showError("Cannot open calendar app")
+        }
     }
 
     private fun createEvent(
@@ -396,12 +439,16 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private fun showPermissionDeniedMessage(canRetry: Boolean) {
         Snackbar.make(
             binding.root,
-            "Calendar permission required to create events",
+            if (appSettings.openCalendarEventDraft) {
+                "Calendar permission required to show calendars"
+            } else {
+                "Calendar permission required to create events"
+            },
             Snackbar.LENGTH_LONG
         )
             .setAction(if (canRetry) "Retry" else "Settings") {
                 if (canRetry) {
-                    permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
+                    permissionLauncher.launch(getCalendarPermissionsForCurrentMode())
                 } else {
                     openAppSettings()
                 }

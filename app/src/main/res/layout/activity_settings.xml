@@ -150,6 +150,21 @@
             android:layout_height="wrap_content"
             android:orientation="vertical" />
 
+        <CheckBox
+            android:id="@+id/cbOpenCalendarEventDraft"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Open events in Calendar for review" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="32dp"
+            android:text="Open a pre-filled event instead of saving directly. The saved calendar is included when available, but the calendar app may ignore it."
+            android:textColor="@color/on_surface_secondary"
+            android:textSize="12sp" />
+
         <!-- Divider -->
         <View
             android:layout_width="match_parent"

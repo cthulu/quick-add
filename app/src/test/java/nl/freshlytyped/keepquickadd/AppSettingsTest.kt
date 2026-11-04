@@ -157,4 +157,16 @@ class AppSettingsTest {
 
         assertEquals(setOf(42L), settings.hiddenCalendarIds)
     }
+
+    @Test
+    fun `calendar event draft is disabled by default`() {
+        assertFalse(settings.openCalendarEventDraft)
+    }
+
+    @Test
+    fun `calendar event draft preference persists`() {
+        settings.openCalendarEventDraft = true
+
+        assertTrue(AppSettings(context).openCalendarEventDraft)
+    }
 }

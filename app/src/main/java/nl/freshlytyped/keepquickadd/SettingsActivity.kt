@@ -49,6 +49,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.etSubscribeKey.setText(settings.subscribeKey)
         binding.etApiKey.setText(settings.apiKey)
         binding.etChannel.setText(settings.channel)
+        binding.cbOpenCalendarEventDraft.isChecked = settings.openCalendarEventDraft
         loadListInputs()
         requestCalendarPermissionsIfNeeded()
 
@@ -195,6 +196,7 @@ class SettingsActivity : AppCompatActivity() {
         settings.apiKey = api
         settings.channel = channel
         settings.hiddenCalendarIds = hiddenCalendarIds
+        settings.openCalendarEventDraft = binding.cbOpenCalendarEventDraft.isChecked
         settings.saveLists(lists)
         Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
         finish()
