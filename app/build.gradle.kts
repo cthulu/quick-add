@@ -27,6 +27,18 @@ android {
         versionName = "1.0"
     }
 
+    flavorDimensions += "keep"
+    productFlavors {
+        create("standard") {
+            dimension = "keep"
+            buildConfigField("boolean", "KEEP_ENABLED", "false")
+        }
+        create("personal") {
+            dimension = "keep"
+            buildConfigField("boolean", "KEEP_ENABLED", "true")
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -52,6 +64,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 
     testOptions {

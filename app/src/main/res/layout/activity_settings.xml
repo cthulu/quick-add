@@ -11,6 +11,12 @@
         android:orientation="vertical"
         android:padding="24dp">
 
+        <LinearLayout
+            android:id="@+id/keepSettingsSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
         <!-- PubNub section -->
         <TextView
             android:layout_width="wrap_content"
@@ -125,6 +131,8 @@
             android:backgroundTint="@color/surface_variant"
             android:textColor="@color/on_surface" />
 
+        </LinearLayout>
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -172,6 +180,12 @@
             android:layout_marginTop="8dp"
             android:text="Hide settings button in Calendar Quick Add" />
 
+        <LinearLayout
+            android:id="@+id/keepListsSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
         <!-- Divider -->
         <View
             android:layout_width="match_parent"
@@ -212,6 +226,8 @@
             android:text="+ Add List"
             android:backgroundTint="@color/surface_variant"
             android:textColor="@color/on_surface" />
+
+        </LinearLayout>
 
         <!-- Save button -->
         <Button

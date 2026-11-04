@@ -52,6 +52,19 @@ quick-add/
 2. Let Gradle sync and download dependencies
 3. Run on a device or emulator (minSdk 26, targetSdk 36)
 
+### Build variants
+
+The app has two product flavors, both using the same application ID:
+
+- **standard** — calendar quick add only; Keep UI and its launcher shortcut are hidden
+- **personal** — includes Keep settings, functionality, and launcher shortcut
+
+Build either debug APK with `./gradlew :app:assembleStandardDebug` or
+`./gradlew :app:assemblePersonalDebug`. The GitHub Actions workflow builds and uploads both
+debug APKs on each run. On pushes to `main` and version tags, it also builds and uploads both
+signed release APKs and app bundles. Since the flavors share an application ID, install one
+variant over the other rather than expecting to keep both installed at once.
+
 The app intentionally permits cleartext HTTP globally for local, LAN, emulator, and
 Tailscale backends. Keep `app/src/main/res/xml/network_security_config.xml` enabled
 when using those backends; this is required for local development and private-network

@@ -23,13 +23,23 @@ jobs:
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-    - name: Build and test debug variant (applicationIdSuffix .debug)
-      run: ./gradlew :app:assembleDebug :app:testDebugUnitTest
-    - name: Upload debug APK
+    - name: Build and test both debug variants (applicationIdSuffix .debug)
+      run: >-
+        ./gradlew
+        :app:assembleStandardDebug
+        :app:testStandardDebugUnitTest
+        :app:assemblePersonalDebug
+        :app:testPersonalDebugUnitTest
+    - name: Upload standard debug APK
       uses: actions/upload-artifact@v4
       with:
-        name: debug-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: standard-debug-apk
+        path: app/build/outputs/apk/standard/debug/app-standard-debug.apk
+    - name: Upload personal debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: personal-debug-apk
+        path: app/build/outputs/apk/personal/debug/app-personal-debug.apk
 
   sign:
     needs: build
@@ -50,20 +60,35 @@ jobs:
         env:
           ANDROID_SIGNING_KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
         run: echo "$ANDROID_SIGNING_KEY" | base64 --decode > release.keystore
-      - name: Build signed APK and AAB
+      - name: Build both signed variants
         env:
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease bundleRelease
-      - name: Upload signed APK
+        run: >-
+          ./gradlew
+          :app:assembleStandardRelease
+          :app:bundleStandardRelease
+          :app:assemblePersonalRelease
+          :app:bundlePersonalRelease
+      - name: Upload standard signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
-          path: app/build/outputs/apk/release/app-release.apk
-      - name: Upload signed AAB
+          name: standard-release-apk
+          path: app/build/outputs/apk/standard/release/app-standard-release.apk
+      - name: Upload personal signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: release-aab
-          path: app/build/outputs/bundle/release/app-release.aab
+          name: personal-release-apk
+          path: app/build/outputs/apk/personal/release/app-personal-release.apk
+      - name: Upload standard signed AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: standard-release-aab
+          path: app/build/outputs/bundle/standardRelease/app-standard-release.aab
+      - name: Upload personal signed AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-release-aab
+          path: app/build/outputs/bundle/personalRelease/app-personal-release.aab
