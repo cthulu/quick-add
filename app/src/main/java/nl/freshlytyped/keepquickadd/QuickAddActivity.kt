@@ -44,6 +44,10 @@ class QuickAddActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!AppFeatures.keepEnabled) {
+            finish()
+            return
+        }
 
         // Full-screen window — adjustResize can actually shrink it when the keyboard
         // appears, which pushes the bottom-gravity popup card up naturally.

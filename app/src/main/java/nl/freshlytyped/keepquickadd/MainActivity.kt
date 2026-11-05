@@ -50,15 +50,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateUI() {
-        binding.tvStatus.text = "Tap to open the Quick Add popup"
+        val keepEnabled = AppFeatures.keepEnabled
+        binding.tvDescription.text = if (keepEnabled) {
+            "Quickly add items to your Google Keep lists\nfrom anywhere on your device."
+        } else {
+            "Quickly add calendar events from anywhere on your device."
+        }
+        binding.btnStartWidget.visibility = if (keepEnabled) {
+            android.view.View.VISIBLE
+        } else {
+            android.view.View.GONE
+        }
+        binding.btnSettings.text = if (keepEnabled) {
+            "⚙ Configure PubNub & Lists"
+        } else {
+            "⚙ Calendar Settings"
+        }
+        binding.tvStatus.text = if (keepEnabled) {
+            "Tap to open the Quick Add popup"
+        } else {
+            "Tap to add a calendar event"
+        }
         binding.tvStatus.setTextColor(getColor(R.color.on_surface_secondary))
         binding.btnGrantPermission.visibility = android.view.View.GONE
-        binding.btnStartWidget.visibility = android.view.View.VISIBLE
         binding.btnStartWidget.text = "Open Quick Add"
         binding.btnStopWidget.visibility = android.view.View.GONE
     }
 
     private fun openQuickAdd() {
+        if (!AppFeatures.keepEnabled) return
         startActivity(Intent(this, QuickAddActivity::class.java))
     }
 

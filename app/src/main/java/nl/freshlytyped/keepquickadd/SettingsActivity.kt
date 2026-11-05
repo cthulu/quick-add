@@ -45,21 +45,27 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         settings = AppSettings(this)
-        repository = KeepRepository(this)
         calendarRepository = CalendarRepository(this)
 
-        binding.etPublishKey.setText(settings.publishKey)
-        binding.etSubscribeKey.setText(settings.subscribeKey)
-        binding.etApiKey.setText(settings.apiKey)
-        binding.etChannel.setText(settings.channel)
+        if (AppFeatures.keepEnabled) {
+            repository = KeepRepository(this)
+            binding.etPublishKey.setText(settings.publishKey)
+            binding.etSubscribeKey.setText(settings.subscribeKey)
+            binding.etApiKey.setText(settings.apiKey)
+            binding.etChannel.setText(settings.channel)
+            loadListInputs()
+            binding.btnAddList.setOnClickListener { addListInput("", removable = true) }
+            binding.btnTestConnection.setOnClickListener { testConnection() }
+        } else {
+            binding.keepSettingsSection.visibility = android.view.View.GONE
+            binding.keepListsSection.visibility = android.view.View.GONE
+        }
+
         binding.cbOpenCalendarEventDraft.isChecked = settings.openCalendarEventDraft
         binding.cbHideCalendarSettingsButton.isChecked = settings.hideCalendarSettingsButton
         applyCalendarCheckboxAccent()
-        loadListInputs()
         requestCalendarPermissionsIfNeeded()
 
-        binding.btnAddList.setOnClickListener { addListInput("", removable = true) }
-        binding.btnTestConnection.setOnClickListener { testConnection() }
         binding.btnSaveUrl.setOnClickListener { saveSettings() }
     }
 
@@ -167,6 +173,8 @@ class SettingsActivity : AppCompatActivity() {
     // --- Connection test ---
 
     private fun testConnection() {
+        if (!AppFeatures.keepEnabled) return
+
         val pub = binding.etPublishKey.text.toString().trim()
         val sub = binding.etSubscribeKey.text.toString().trim()
         val api = binding.etApiKey.text.toString().trim()
@@ -200,33 +208,38 @@ class SettingsActivity : AppCompatActivity() {
     // --- Save ---
 
     private fun saveSettings() {
-        val pub = binding.etPublishKey.text.toString().trim()
-        val sub = binding.etSubscribeKey.text.toString().trim()
-        val api = binding.etApiKey.text.toString().trim()
-        val channel = binding.etChannel.text.toString().trim().ifBlank { AppSettings.DEFAULT_CHANNEL }
         val hiddenCalendarIds = settings.hiddenCalendarIds
             .minus(loadedCalendarIds)
             .plus(calendarCheckboxes.filterValues { !it.isChecked }.keys)
 
-        if (pub.isEmpty() || sub.isEmpty()) {
-            Toast.makeText(this, "Publish + Subscribe keys are required", Toast.LENGTH_SHORT).show()
-            return
+        if (AppFeatures.keepEnabled) {
+            val pub = binding.etPublishKey.text.toString().trim()
+            val sub = binding.etSubscribeKey.text.toString().trim()
+            val api = binding.etApiKey.text.toString().trim()
+            val channel = binding.etChannel.text.toString().trim()
+                .ifBlank { AppSettings.DEFAULT_CHANNEL }
+
+            if (pub.isEmpty() || sub.isEmpty()) {
+                Toast.makeText(this, "Publish + Subscribe keys are required", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val lists = collectListNames()
+            if (lists.firstOrNull().isNullOrBlank()) {
+                Toast.makeText(this, "First list name is required", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            settings.publishKey = pub
+            settings.subscribeKey = sub
+            settings.apiKey = api
+            settings.channel = channel
+            settings.saveLists(lists)
         }
 
-        val lists = collectListNames()
-        if (lists.firstOrNull().isNullOrBlank()) {
-            Toast.makeText(this, "First list name is required", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        settings.publishKey = pub
-        settings.subscribeKey = sub
-        settings.apiKey = api
-        settings.channel = channel
         settings.hiddenCalendarIds = hiddenCalendarIds
         settings.openCalendarEventDraft = binding.cbOpenCalendarEventDraft.isChecked
         settings.hideCalendarSettingsButton = binding.cbHideCalendarSettingsButton.isChecked
-        settings.saveLists(lists)
         Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
         finish()
     }

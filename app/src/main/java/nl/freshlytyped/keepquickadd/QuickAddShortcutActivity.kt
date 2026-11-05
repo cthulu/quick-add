@@ -12,6 +12,11 @@ class QuickAddShortcutActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!AppFeatures.keepEnabled) {
+            finish()
+            return
+        }
+
         startActivity(Intent(this, QuickAddActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         })
