@@ -68,6 +68,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private var inputRevision = 0
     private var lookupRevision = 0
     private var permissionsRequested = false
+    private var hasRequestedKeyboard = false
 
     private lateinit var eventPreviewAdapter: EventPreviewAdapter
 
@@ -107,10 +108,6 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         setupEventPreview()
 
         binding.etEventInput.requestFocus()
-        binding.etEventInput.post {
-            WindowCompat.getInsetsController(window, binding.etEventInput)
-                .show(WindowInsetsCompat.Type.ime())
-        }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -297,12 +294,28 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun restoreInputFocus() {
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Bring up the keyboard once the window is actually focused. Doing this in
+        // onWindowFocusChanged (not onCreate) makes it work when the activity is
+        // launched via the shortcut trampoline, where onCreate runs before the
+        // window reaches a stably focused state.
+        if (hasFocus && !hasRequestedKeyboard && ::binding.isInitialized) {
+            hasRequestedKeyboard = true
+            showKeyboard()
+        }
+    }
+
+    private fun showKeyboard() {
         binding.etEventInput.requestFocus()
         binding.etEventInput.post {
             WindowCompat.getInsetsController(window, binding.etEventInput)
                 .show(WindowInsetsCompat.Type.ime())
         }
+    }
+
+    private fun restoreInputFocus() {
+        showKeyboard()
     }
 
     private fun setupCalendarSpinner() {

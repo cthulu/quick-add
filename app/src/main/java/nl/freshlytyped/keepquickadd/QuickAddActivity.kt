@@ -40,6 +40,7 @@ class QuickAddActivity : AppCompatActivity() {
     private var lists: List<String> = emptyList()
     private var selectedListIndex: Int = 0
     private var isDestroyed = false
+    private var hasRequestedKeyboard = false
     private val requestScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,10 +73,6 @@ class QuickAddActivity : AppCompatActivity() {
         setupButtons()
 
         binding.etItemText.requestFocus()
-        binding.etItemText.post {
-            WindowCompat.getInsetsController(window, binding.etItemText)
-                .show(WindowInsetsCompat.Type.ime())
-        }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -168,12 +165,28 @@ class QuickAddActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun restoreInputFocus() {
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Bring up the keyboard once the window is actually focused. Doing this in
+        // onWindowFocusChanged (not onCreate) makes it work when the activity is
+        // launched via the shortcut trampoline, where onCreate runs before the
+        // window reaches a stably focused state.
+        if (hasFocus && !hasRequestedKeyboard && ::binding.isInitialized) {
+            hasRequestedKeyboard = true
+            showKeyboard()
+        }
+    }
+
+    private fun showKeyboard() {
         binding.etItemText.requestFocus()
         binding.etItemText.post {
             WindowCompat.getInsetsController(window, binding.etItemText)
                 .show(WindowInsetsCompat.Type.ime())
         }
+    }
+
+    private fun restoreInputFocus() {
+        showKeyboard()
     }
 
     private fun submitItem() {
