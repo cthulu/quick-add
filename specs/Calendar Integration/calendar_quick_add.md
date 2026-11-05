@@ -8,6 +8,7 @@ This index links the Calendar Quick Add implementation specs in execution order 
 3. `specs/10_realtime_parsing_and_highlighting.md`
 4. `specs/11_calendarcontract_integration_and_permissions.md`
 5. `specs/12_testing_performance_and_rollout.md`
+6. `specs/13_date_preview_panel.md`
 
 ## Android Shortcut
 The `CalendarQuickAddActivity` is exposed as an Android shortcut via `CalendarQuickAddShortcutActivity`, similar to the Keep quick-add shortcut. Users can long-press the app icon to access both "Quick Add to Keep" and "Quick Add to Calendar" shortcuts.
@@ -18,6 +19,7 @@ The `CalendarQuickAddActivity` is exposed as an Android shortcut via `CalendarQu
 - Step 10 depends on Step 9 parse outputs (`matchedRanges`, `ParseState`, parsed datetime).
 - Step 11 depends on Step 9 parse state and Step 10 UI state behavior for save enablement.
 - Step 12 depends on all prior steps.
+- Step 13 depends on steps 10 (parse state) and 11 (calendar query infrastructure).
 
 ## Agent Implementation Notes
 - Keep all parsing on-device and off the main thread.
@@ -32,5 +34,6 @@ The `CalendarQuickAddActivity` is exposed as an Android shortcut via `CalendarQu
 - PR 3: Step 10 only
 - PR 4: Step 11 only
 - PR 5: Step 12 only
+- PR 6: Step 13 only
 
 This sequencing keeps risk low and allows rollback at feature boundaries.
