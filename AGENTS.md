@@ -15,6 +15,15 @@ Quick Add is an Android app that:
 - Avoid adding unnecessary comments
 - Make sure you optimize the imports
 
+# Static shortcuts
+The launcher shortcuts are defined in four `res/xml/shortcuts.xml` files that must be kept in sync:
+- `app/src/main/res/xml/shortcuts.xml` — standard release
+- `app/src/personal/res/xml/shortcuts.xml` — personal release
+- `app/src/standardDebug/res/xml/shortcuts.xml` — standard debug
+- `app/src/personalDebug/res/xml/shortcuts.xml` — personal debug
+
+The debug variants exist because the debug build type adds `applicationIdSuffix = ".debug"`, and the `android:targetPackage` in shortcut XML is a hardcoded literal that cannot reference the applicationId dynamically. So the two debug files use `nl.freshlytyped.keepquickadd.debug` while the release files use `nl.freshlytyped.keepquickadd`. If you change the shortcut content, update all four files.
+
 # Feature work
 - Always create a new branch for new features
 - Keep the commit message clean without mentioning the files
