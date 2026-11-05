@@ -25,6 +25,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.snackbar.Snackbar
@@ -47,6 +48,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
     private companion object {
         const val PARSE_DEBOUNCE_MS = 120L
+        const val EVENT_LOOKUP_DEBOUNCE_MS = 300L
     }
 
     private val deviceZoneId = ZoneId.systemDefault()
@@ -62,8 +64,12 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private var selectedCalendar: CalendarRepository.CalendarInfo? = null
 
     private var parseJob: Job? = null
+    private var eventLookupJob: Job? = null
     private var inputRevision = 0
+    private var lookupRevision = 0
     private var permissionsRequested = false
+
+    private lateinit var eventPreviewAdapter: EventPreviewAdapter
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -98,6 +104,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         setupTextWatcher()
         setupButtons()
         setupCalendarSpinner()
+        setupEventPreview()
 
         binding.etEventInput.requestFocus()
         binding.etEventInput.post {
@@ -133,7 +140,9 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
             override fun afterTextChanged(editable: Editable?) {
                 currentDraft = null
-                scheduleParse(editable?.toString() ?: "")
+                val text = editable?.toString() ?: ""
+                scheduleParse(text)
+                scheduleEventLookup(text)
             }
         }
         binding.etEventInput.addTextChangedListener(textWatcher)
@@ -153,6 +162,67 @@ class CalendarQuickAddActivity : AppCompatActivity() {
                 applyHighlighting(input, parseResult)
                 updateCurrentDraft(input, parseResult)
             }
+        }
+    }
+
+    private fun setupEventPreview() {
+        eventPreviewAdapter = EventPreviewAdapter()
+        binding.previewPanel.rvPreviewEvents.layoutManager = LinearLayoutManager(this)
+        binding.previewPanel.rvPreviewEvents.adapter = eventPreviewAdapter
+    }
+
+    private fun scheduleEventLookup(input: String) {
+        eventLookupJob?.cancel()
+        val revision = ++lookupRevision
+        eventLookupJob = lifecycleScope.launch {
+            delay(EVENT_LOOKUP_DEBOUNCE_MS)
+            if (revision != lookupRevision) return@launch
+
+            val parseResult = withContext(Dispatchers.Default) {
+                parserService.parse(input, ZonedDateTime.now(deviceZoneId))
+            }
+            if (revision != lookupRevision) return@launch
+
+            val start = parseResult.start
+            val end = parseResult.end
+            if (parseResult.state != ParseState.RESOLVED || start == null || end == null) {
+                hidePreviewPanel()
+                return@launch
+            }
+
+            val day = start.toLocalDate()
+            val dayStartMillis = day.atStartOfDay(deviceZoneId).toInstant().toEpochMilli()
+            val dayEndMillis = day.plusDays(1).atStartOfDay(deviceZoneId).toInstant().toEpochMilli()
+            val calendarIds = availableCalendars.map { it.id }
+
+            val events = withContext(Dispatchers.Default) {
+                calendarRepository.findEventsOnDay(dayStartMillis, dayEndMillis, calendarIds)
+            }
+
+            val selected = withContext(Dispatchers.Default) {
+                EventPreviewSelection.select(events, start, end, ZonedDateTime.now(deviceZoneId))
+            }
+
+            if (revision != lookupRevision) return@launch
+
+            if (selected.isEmpty()) {
+                hidePreviewPanel()
+            } else {
+                showPreviewPanel(selected, day)
+            }
+        }
+    }
+
+    private fun showPreviewPanel(events: List<CalendarEventItem>, day: LocalDate) {
+        binding.previewPanel.tvPreviewDay.text = day.format(DateTimeFormatter.ofPattern("EEEE, MMM d"))
+        eventPreviewAdapter.submitList(events)
+        binding.previewPanel.root.visibility = View.VISIBLE
+    }
+
+    private fun hidePreviewPanel() {
+        if (binding.previewPanel.root.visibility == View.VISIBLE) {
+            binding.previewPanel.root.visibility = View.GONE
+            eventPreviewAdapter.submitList(emptyList())
         }
     }
 
@@ -296,6 +366,9 @@ class CalendarQuickAddActivity : AppCompatActivity() {
                 } else {
                     showError("No writable calendars found")
                 }
+
+                // Calendars arrived after the first lookup ran with an empty set — re-run it.
+                scheduleEventLookup(binding.etEventInput.text.toString())
             }
         }
     }
@@ -413,6 +486,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         val timeStr = formatParsedTime(draft, useRelativeDate = true)
         val message = "✓ $title\n$timeStr"
 
+        hidePreviewPanel()
         binding.layoutInput.visibility = android.view.View.GONE
         binding.tvConfirmation.text = message
         binding.tvConfirmation.setTextColor(
@@ -518,6 +592,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         parseJob?.cancel()
+        eventLookupJob?.cancel()
         super.onDestroy()
     }
 }

@@ -35,6 +35,13 @@
         android:paddingTop="16dp"
         android:paddingBottom="16dp">
 
+        <!-- Surrounding-events preview panel (shown above the input when a date/time is parsed) -->
+        <include
+            android:id="@+id/previewPanel"
+            layout="@layout/layout_event_preview_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
         <!-- Event input field with hint examples -->
         <EditText
             android:id="@+id/etEventInput"

@@ -5,6 +5,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
 import android.util.Log
+import java.time.Instant
+import java.time.ZoneId
 import java.time.ZonedDateTime
 
 class CalendarRepository(private val context: Context) {
@@ -164,6 +166,71 @@ class CalendarRepository(private val context: Context) {
         } catch (e: Exception) {
             Log.e("CalendarRepository", "Error inserting event", e)
             null
+        }
+    }
+
+    fun findEventsOnDay(
+        dayStartMillis: Long,
+        dayEndMillis: Long,
+        calendarIds: List<Long>
+    ): List<CalendarEventItem> {
+        if (calendarIds.isEmpty()) return emptyList()
+
+        return try {
+            val eventsUri = CalendarContract.Events.CONTENT_URI
+            val projection = arrayOf(
+                CalendarContract.Events._ID,
+                CalendarContract.Events.TITLE,
+                CalendarContract.Events.DTSTART,
+                CalendarContract.Events.DTEND,
+                CalendarContract.Events.ALL_DAY
+            )
+
+            val idPlaceholders = calendarIds.joinToString(",") { "?" }
+            val selection = "${CalendarContract.Events.DTSTART} >= ? AND " +
+                "${CalendarContract.Events.DTSTART} < ? AND " +
+                "${CalendarContract.Events.CALENDAR_ID} IN ($idPlaceholders)"
+            val selectionArgs = (listOf(dayStartMillis.toString(), dayEndMillis.toString()) + calendarIds.map { it.toString() })
+                .toTypedArray()
+            val sortOrder = "${CalendarContract.Events.DTSTART} ASC"
+
+            contentResolver.query(
+                eventsUri,
+                projection,
+                selection,
+                selectionArgs,
+                sortOrder
+            )?.use { cursor ->
+                val idIndex = cursor.getColumnIndex(CalendarContract.Events._ID)
+                val titleIndex = cursor.getColumnIndex(CalendarContract.Events.TITLE)
+                val startIndex = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
+                val endIndex = cursor.getColumnIndex(CalendarContract.Events.DTEND)
+                val allDayIndex = cursor.getColumnIndex(CalendarContract.Events.ALL_DAY)
+
+                val events = mutableListOf<CalendarEventItem>()
+
+                while (cursor.moveToNext()) {
+                    if (cursor.getInt(allDayIndex) == 1) continue
+
+                    val startMillis = cursor.getLong(startIndex)
+                    val endMillis = if (cursor.isNull(endIndex)) startMillis else cursor.getLong(endIndex)
+                    val zone = ZoneId.systemDefault()
+
+                    events.add(
+                        CalendarEventItem(
+                            id = cursor.getLong(idIndex),
+                            title = cursor.getString(titleIndex)?.takeIf { it.isNotBlank() } ?: "Untitled event",
+                            startTime = Instant.ofEpochMilli(startMillis).atZone(zone),
+                            endTime = Instant.ofEpochMilli(endMillis).atZone(zone)
+                        )
+                    )
+                }
+
+                events
+            } ?: emptyList()
+        } catch (e: Exception) {
+            Log.e("CalendarRepository", "Error querying events", e)
+            emptyList()
         }
     }
 

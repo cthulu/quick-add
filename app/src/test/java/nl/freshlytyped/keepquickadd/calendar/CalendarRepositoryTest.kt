@@ -8,6 +8,7 @@ import android.net.Uri
 import android.provider.CalendarContract
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -143,10 +144,53 @@ class CalendarRepositoryTest {
         assertEquals(null, eventId)
     }
 
+    @Test
+    fun `findEventsOnDay returns only non-all-day events`() {
+        val cursor = eventCursor(
+            EventRow(1, "All day thing", dtStart, dtEnd, allDay = 1),
+            EventRow(2, "Time block", dtStart, dtEnd, allDay = 0)
+        )
+        whenever(contentResolver.query(any(), any(), any(), any(), any())).thenReturn(cursor)
+
+        val events = repository.findEventsOnDay(dtStart - 1_000, dtEnd + 1_000, listOf(7L))
+
+        assertEquals(listOf(2L), events.map { it.id })
+    }
+
+    @Test
+    fun `findEventsOnDay maps title and start-end times`() {
+        val cursor = eventCursor(
+            EventRow(9, "Standup", 10_000, 11_000, allDay = 0)
+        )
+        whenever(contentResolver.query(any(), any(), any(), any(), any())).thenReturn(cursor)
+
+        val event = repository.findEventsOnDay(0, 20_000, listOf(1L, 2L)).single()
+
+        assertEquals("Standup", event.title)
+        assertEquals(10_000L, event.startTime.toInstant().toEpochMilli())
+        assertEquals(11_000L, event.endTime.toInstant().toEpochMilli())
+    }
+
+    @Test
+    fun `findEventsOnDay returns empty without querying when no calendars`() {
+        val events = repository.findEventsOnDay(dtStart, dtEnd, emptyList())
+
+        assertTrue(events.isEmpty())
+        verify(contentResolver, never()).query(any(), any(), any(), any(), any())
+    }
+
     private fun calendarCursor(vararg rows: CalendarRow): MatrixCursor {
         return MatrixCursor(projection).apply {
             rows.forEach { row ->
                 addRow(arrayOf<Any?>(row.id, row.name, row.visible, row.ownerAccount, row.accessLevel, if (row.isPrimary) 1 else 0))
+            }
+        }
+    }
+
+    private fun eventCursor(vararg rows: EventRow): MatrixCursor {
+        return MatrixCursor(eventProjection).apply {
+            rows.forEach { row ->
+                addRow(arrayOf<Any?>(row.id, row.title, row.dtStart, row.dtEnd, row.allDay))
             }
         }
     }
@@ -160,8 +204,18 @@ class CalendarRepositoryTest {
         val isPrimary: Boolean = false
     )
 
+    private data class EventRow(
+        val id: Long,
+        val title: String,
+        val dtStart: Long,
+        val dtEnd: Long,
+        val allDay: Int
+    )
+
     private companion object {
         val startTime = ZonedDateTime.of(2026, 9, 9, 10, 0, 0, 0, ZoneId.of("UTC"))
+        val dtStart = startTime.toInstant().toEpochMilli()
+        val dtEnd = startTime.plusMinutes(30).toInstant().toEpochMilli()
 
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
@@ -170,6 +224,14 @@ class CalendarRepositoryTest {
             CalendarContract.Calendars.OWNER_ACCOUNT,
             CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
             CalendarContract.Calendars.IS_PRIMARY
+        )
+
+        val eventProjection = arrayOf(
+            CalendarContract.Events._ID,
+            CalendarContract.Events.TITLE,
+            CalendarContract.Events.DTSTART,
+            CalendarContract.Events.DTEND,
+            CalendarContract.Events.ALL_DAY
         )
     }
 }
