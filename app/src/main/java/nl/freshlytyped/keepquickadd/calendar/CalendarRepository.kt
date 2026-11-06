@@ -1,6 +1,7 @@
 package nl.freshlytyped.keepquickadd.calendar
 
 import android.content.ContentResolver
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
@@ -177,56 +178,86 @@ class CalendarRepository(private val context: Context) {
         if (calendarIds.isEmpty()) return emptyList()
 
         return try {
-            val eventsUri = CalendarContract.Events.CONTENT_URI
+            // The time-range Instances query expands recurring events to one row per
+            // occurrence; the Events table only holds one row per series.
+            val instancesUri = CalendarContract.Instances.CONTENT_URI.buildUpon()
+                .apply {
+                    ContentUris.appendId(this, dayStartMillis)
+                    ContentUris.appendId(this, dayEndMillis)
+                }
+                .build()
             val projection = arrayOf(
                 CalendarContract.Events._ID,
                 CalendarContract.Events.TITLE,
-                CalendarContract.Events.DTSTART,
-                CalendarContract.Events.DTEND,
-                CalendarContract.Events.ALL_DAY
+                CalendarContract.Events.ALL_DAY,
+                CalendarContract.Events.ORIGINAL_ID,
+                CalendarContract.Events.ORIGINAL_INSTANCE_TIME,
+                CalendarContract.Instances.BEGIN,
+                CalendarContract.Instances.END
             )
 
             val idPlaceholders = calendarIds.joinToString(",") { "?" }
-            val selection = "${CalendarContract.Events.DTSTART} >= ? AND " +
-                "${CalendarContract.Events.DTSTART} < ? AND " +
-                "${CalendarContract.Events.CALENDAR_ID} IN ($idPlaceholders)"
-            val selectionArgs = (listOf(dayStartMillis.toString(), dayEndMillis.toString()) + calendarIds.map { it.toString() })
-                .toTypedArray()
-            val sortOrder = "${CalendarContract.Events.DTSTART} ASC"
+            val selection = "${CalendarContract.Events.CALENDAR_ID} IN ($idPlaceholders)"
+            val selectionArgs = calendarIds.map { it.toString() }.toTypedArray()
 
             contentResolver.query(
-                eventsUri,
+                instancesUri,
                 projection,
                 selection,
                 selectionArgs,
-                sortOrder
+                null
             )?.use { cursor ->
                 val idIndex = cursor.getColumnIndex(CalendarContract.Events._ID)
                 val titleIndex = cursor.getColumnIndex(CalendarContract.Events.TITLE)
-                val startIndex = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
-                val endIndex = cursor.getColumnIndex(CalendarContract.Events.DTEND)
                 val allDayIndex = cursor.getColumnIndex(CalendarContract.Events.ALL_DAY)
+                val originalIdIndex = cursor.getColumnIndex(CalendarContract.Events.ORIGINAL_ID)
+                val originalTimeIndex = cursor.getColumnIndex(CalendarContract.Events.ORIGINAL_INSTANCE_TIME)
+                val beginIndex = cursor.getColumnIndex(CalendarContract.Instances.BEGIN)
+                val endIndex = cursor.getColumnIndex(CalendarContract.Instances.END)
 
-                val events = mutableListOf<CalendarEventItem>()
+                val zone = ZoneId.systemDefault()
+                data class Row(
+                    val id: Long,
+                    val title: String,
+                    val originalId: String?,
+                    val originalTime: Long?,
+                    val begin: Long,
+                    val end: Long
+                )
 
+                val rows = mutableListOf<Row>()
                 while (cursor.moveToNext()) {
                     if (cursor.getInt(allDayIndex) == 1) continue
-
-                    val startMillis = cursor.getLong(startIndex)
-                    val endMillis = if (cursor.isNull(endIndex)) startMillis else cursor.getLong(endIndex)
-                    val zone = ZoneId.systemDefault()
-
-                    events.add(
-                        CalendarEventItem(
+                    rows.add(
+                        Row(
                             id = cursor.getLong(idIndex),
                             title = cursor.getString(titleIndex)?.takeIf { it.isNotBlank() } ?: "Untitled event",
-                            startTime = Instant.ofEpochMilli(startMillis).atZone(zone),
-                            endTime = Instant.ofEpochMilli(endMillis).atZone(zone)
+                            originalId = cursor.getString(originalIdIndex),
+                            originalTime = if (cursor.isNull(originalTimeIndex)) null else cursor.getLong(originalTimeIndex),
+                            begin = cursor.getLong(beginIndex),
+                            end = if (cursor.isNull(endIndex)) cursor.getLong(beginIndex) else cursor.getLong(endIndex)
                         )
                     )
                 }
 
-                events
+                // An occurrence the user moved shows as an exception row; drop the master's
+                // instance at the original time if the provider still returns it.
+                val suppressed = rows
+                    .filter { it.originalId != null && it.originalTime != null }
+                    .map { "${it.originalId}:${it.originalTime}" }
+                    .toSet()
+
+                rows
+                    .filterNot { row -> row.originalId == null && "${row.id}:${row.begin}" in suppressed }
+                    .sortedBy { it.begin }
+                    .map {
+                        CalendarEventItem(
+                            id = it.id,
+                            title = it.title,
+                            startTime = Instant.ofEpochMilli(it.begin).atZone(zone),
+                            endTime = Instant.ofEpochMilli(it.end).atZone(zone)
+                        )
+                    }
             } ?: emptyList()
         } catch (e: Exception) {
             Log.e("CalendarRepository", "Error querying events", e)

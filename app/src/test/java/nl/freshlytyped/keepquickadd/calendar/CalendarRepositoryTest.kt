@@ -145,12 +145,12 @@ class CalendarRepositoryTest {
     }
 
     @Test
-    fun `findEventsOnDay returns only non-all-day events`() {
-        val cursor = eventCursor(
-            EventRow(1, "All day thing", dtStart, dtEnd, allDay = 1),
-            EventRow(2, "Time block", dtStart, dtEnd, allDay = 0)
+    fun `findEventsOnDay returns only non-all-day occurrences`() {
+        val cursor = instanceCursor(
+            InstanceRow(1, "All day thing", allDay = 1, begin = dtStart, end = dtEnd),
+            InstanceRow(2, "Time block", allDay = 0, begin = dtStart, end = dtEnd)
         )
-        whenever(contentResolver.query(any(), any(), any(), any(), any())).thenReturn(cursor)
+        whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
 
         val events = repository.findEventsOnDay(dtStart - 1_000, dtEnd + 1_000, listOf(7L))
 
@@ -159,16 +159,56 @@ class CalendarRepositoryTest {
 
     @Test
     fun `findEventsOnDay maps title and start-end times`() {
-        val cursor = eventCursor(
-            EventRow(9, "Standup", 10_000, 11_000, allDay = 0)
+        val cursor = instanceCursor(
+            InstanceRow(9, "Standup", allDay = 0, begin = 10_000, end = 11_000)
         )
-        whenever(contentResolver.query(any(), any(), any(), any(), any())).thenReturn(cursor)
+        whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
 
         val event = repository.findEventsOnDay(0, 20_000, listOf(1L, 2L)).single()
 
         assertEquals("Standup", event.title)
         assertEquals(10_000L, event.startTime.toInstant().toEpochMilli())
         assertEquals(11_000L, event.endTime.toInstant().toEpochMilli())
+    }
+
+    @Test
+    fun `findEventsOnDay returns expanded occurrences of recurring events`() {
+        val cursor = instanceCursor(
+            InstanceRow(5, "Team sync", allDay = 0, begin = 100_000, end = 110_000)
+        )
+        whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
+
+        val events = repository.findEventsOnDay(0, 200_000, listOf(1L))
+
+        assertEquals(1, events.size)
+        assertEquals(100_000L, events.single().startTime.toInstant().toEpochMilli())
+    }
+
+    @Test
+    fun `findEventsOnDay drops the master occurrence of a moved exception`() {
+        val cursor = instanceCursor(
+            InstanceRow(5, "Team sync", allDay = 0, begin = 100_000, end = 110_000),
+            InstanceRow(9, "Team sync", allDay = 0, originalId = "5", originalTime = 100_000, begin = 120_000, end = 130_000)
+        )
+        whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
+
+        val events = repository.findEventsOnDay(0, 200_000, listOf(1L))
+
+        assertEquals(listOf(9L), events.map { it.id })
+        assertEquals(120_000L, events.single().startTime.toInstant().toEpochMilli())
+    }
+
+    @Test
+    fun `findEventsOnDay sorts occurrences chronologically`() {
+        val cursor = instanceCursor(
+            InstanceRow(3, "Late", allDay = 0, begin = 120_000, end = 130_000),
+            InstanceRow(2, "Early", allDay = 0, begin = 100_000, end = 110_000)
+        )
+        whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
+
+        val events = repository.findEventsOnDay(0, 200_000, listOf(1L))
+
+        assertEquals(listOf(2L, 3L), events.map { it.id })
     }
 
     @Test
@@ -187,10 +227,10 @@ class CalendarRepositoryTest {
         }
     }
 
-    private fun eventCursor(vararg rows: EventRow): MatrixCursor {
-        return MatrixCursor(eventProjection).apply {
+    private fun instanceCursor(vararg rows: InstanceRow): MatrixCursor {
+        return MatrixCursor(instanceProjection).apply {
             rows.forEach { row ->
-                addRow(arrayOf<Any?>(row.id, row.title, row.dtStart, row.dtEnd, row.allDay))
+                addRow(arrayOf<Any?>(row.id, row.title, row.allDay, row.originalId, row.originalTime, row.begin, row.end))
             }
         }
     }
@@ -204,12 +244,14 @@ class CalendarRepositoryTest {
         val isPrimary: Boolean = false
     )
 
-    private data class EventRow(
+    private data class InstanceRow(
         val id: Long,
         val title: String,
-        val dtStart: Long,
-        val dtEnd: Long,
-        val allDay: Int
+        val allDay: Int,
+        val originalId: String? = null,
+        val originalTime: Long? = null,
+        val begin: Long,
+        val end: Long
     )
 
     private companion object {
@@ -226,12 +268,14 @@ class CalendarRepositoryTest {
             CalendarContract.Calendars.IS_PRIMARY
         )
 
-        val eventProjection = arrayOf(
+        val instanceProjection = arrayOf(
             CalendarContract.Events._ID,
             CalendarContract.Events.TITLE,
-            CalendarContract.Events.DTSTART,
-            CalendarContract.Events.DTEND,
-            CalendarContract.Events.ALL_DAY
+            CalendarContract.Events.ALL_DAY,
+            CalendarContract.Events.ORIGINAL_ID,
+            CalendarContract.Events.ORIGINAL_INSTANCE_TIME,
+            CalendarContract.Instances.BEGIN,
+            CalendarContract.Instances.END
         )
     }
 }

@@ -40,8 +40,9 @@ class EventPreviewAdapter :
 
     companion object {
         private val DIFF = object : DiffUtil.ItemCallback<CalendarEventItem>() {
+            // Keyed by event + start time: a recurring event can appear twice in a day.
             override fun areItemsTheSame(oldItem: CalendarEventItem, newItem: CalendarEventItem) =
-                oldItem.id == newItem.id
+                oldItem.id == newItem.id && oldItem.startTime == newItem.startTime
 
             override fun areContentsTheSame(oldItem: CalendarEventItem, newItem: CalendarEventItem) =
                 oldItem == newItem

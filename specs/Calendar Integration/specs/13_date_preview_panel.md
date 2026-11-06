@@ -5,7 +5,7 @@ When the user types text that resolves to a date/time, show a floating preview p
 
 ## Scope
 - Query existing events from visible calendars around the parsed time window.
-- Display matching events in a scrollable panel between the input field and action buttons.
+- Display matching events in a scrollable panel above the input field.
 - Auto-hide the panel when the parsed text no longer resolves to a date/time.
 
 ## Non-Goals
@@ -24,13 +24,14 @@ Each stage tracks its own revision counter; cancel the previous job on new input
 ### Event Query Logic
 Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 
-1. **Query**: the identified day (midnight to midnight) from all visible calendars (the set shown in the dropdown, excluding hidden calendars).
-2. **Exclude all-day events** (from the provider query).
-3. **Candidate buffer**: keep events that overlap the parsed window ±2 hours. For `14:00–15:00`, that is `12:00–17:00`.
-4. **Exclude past events**: drop events where `endTime < now`.
-5. **Sort**: Chronologically, earliest first.
-6. **Limit**: If ≤6 candidates, show all. If >6, keep the 6 closest to the parsed window, then re-sort chronologically.
-7. **Empty results**: Keep the panel hidden (`GONE`).
+1. **Query**: the provider's `Instances` time-range (midnight to midnight of the identified day) from all visible calendars (the set shown in the dropdown, excluding hidden calendars). `Events` holds one row per event series, so a recurring event's later occurrences would never match a day query on it; `Instances` holds one row per occurrence (the provider expands recurrences), which covers one-time and recurring events uniformly.
+2. **Exclude all-day events** (via the joined `ALL_DAY` column).
+3. **Dedupe moved occurrences**: if the provider returns both a master occurrence and the exception that replaced it, keep only the exception (keyed on `ORIGINAL_ID` + `ORIGINAL_INSTANCE_TIME`).
+4. **Candidate buffer**: keep events that overlap the parsed window ±2 hours. For `14:00–15:00`, that is `12:00–17:00`.
+5. **Exclude past events**: drop events where `endTime < now`.
+6. **Sort**: Chronologically, earliest first.
+7. **Limit**: If ≤6 candidates, show all. If >6, keep the 6 closest to the parsed window, then re-sort chronologically.
+8. **Empty results**: Keep the panel hidden (`GONE`).
 
 ### Panel Visibility Rules
 - `RESOLVED` parse + non-empty query results → panel `VISIBLE`.
@@ -51,14 +52,14 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 |---|---|
 | `calendar/CalendarEventItem.kt` | Data class: `id`, `title`, `startTime`, `endTime` |
 | `calendar/EventPreviewSelection.kt` | Pure buffer/proximity selection logic (unit tested) |
-| `calendar/EventPreviewAdapter.kt` | `ListAdapter` for event rows |
+| `calendar/EventPreviewAdapter.kt` | `ListAdapter` for event rows (diff key = event id + start time, since one event can appear twice in a day) |
 | `res/layout/layout_event_preview_panel.xml` | Panel container: day header + `RecyclerView` |
 | `res/layout/layout_event_preview_row.xml` | Single event row layout |
 
 ### Modified Files
 | File | Changes |
 |---|---|
-| `calendar/CalendarRepository.kt` | Add `findEventsOnDay(dayStartMillis, dayEndMillis, calendarIds)` |
+| `calendar/CalendarRepository.kt` | Add `findEventsOnDay(dayStartMillis, dayEndMillis, calendarIds)` querying the `Instances` time-range (expands recurring events) and mapping occurrences |
 | `calendar/CalendarQuickAddActivity.kt` | Add 300ms lookup debounce; query & populate panel on `RESOLVED`; hide on other states |
 | `res/layout/layout_calendar_floating_widget.xml` | Insert preview panel above the text input |
 
@@ -70,7 +71,7 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 
 ### Testing
 - `EventPreviewSelectionTest` covers buffer filtering, past-event exclusion, chronological sorting, and the closest-six trim.
-- `CalendarRepositoryTest` covers `findEventsOnDay`: all-day exclusion, field mapping, and the empty-calendar early return.
+- `CalendarRepositoryTest` covers `findEventsOnDay`: all-day exclusion, field mapping, recurring-event expansion, moved-exception dedupe, chronological sorting, and the empty-calendar early return.
 
 ## Deliverables
 - Preview panel appears when date/time is parsed, showing surrounding events.
@@ -80,6 +81,7 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 
 ## Acceptance Criteria
 - Typing "meeting tomorrow at 2pm" shows the preview panel with events around 12:00–17:00 on tomorrow.
+- A recurring event (e.g., a weekly meeting whose first occurrence is in the past) appears when an occurrence falls in the buffer.
 - Panel displays up to 6 events, sorted chronologically.
 - When more than 6 events exist, the 6 closest to the parsed start time are shown.
 - Panel hides shortly after the user deletes the date/time text (gated by the 300ms lookup debounce).
