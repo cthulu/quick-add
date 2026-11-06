@@ -1,18 +1,14 @@
 package nl.freshlytyped.keepquickadd.calendar
 
-import android.Manifest
 import android.content.Intent
-import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.provider.CalendarContract
 import android.text.Editable
-import android.text.method.LinkMovementMethod
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
+import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -60,7 +56,6 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private lateinit var calendarPreferences: CalendarPreferences
     private lateinit var appSettings: AppSettings
     private var currentDraft: CalendarEventDraft? = null
-    private var availableCalendars: List<CalendarRepository.CalendarInfo> = emptyList()
     private var previewCalendars: List<CalendarRepository.CalendarInfo> = emptyList()
     private var selectedCalendar: CalendarRepository.CalendarInfo? = null
 
@@ -76,7 +71,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
-        if (hasCalendarAccessForCurrentMode()) {
+        if (PermissionHelper.hasReadCalendarPermission(this)) {
             loadCalendars()
         } else {
             showPermissionDeniedMessage(hasTemporaryDenial())
@@ -105,7 +100,6 @@ class CalendarQuickAddActivity : AppCompatActivity() {
 
         setupTextWatcher()
         setupButtons()
-        setupCalendarSpinner()
         setupEventPreview()
 
         binding.etEventInput.requestFocus()
@@ -192,7 +186,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             val dayStartMillis = day.atStartOfDay(deviceZoneId).toInstant().toEpochMilli()
             val dayEndMillis = day.plusDays(1).atStartOfDay(deviceZoneId).toInstant().toEpochMilli()
 
-            // Read-only shared calendars also show up, so the preview can warn about conflicts there too.
+            // Read-only shared calendars show up too, so the preview can warn about conflicts there.
             val events = withContext(Dispatchers.Default) {
                 calendarRepository.findEventsOnDay(dayStartMillis, dayEndMillis, previewCalendars)
             }
@@ -279,6 +273,14 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
         binding.btnSave.setOnClickListener { submitEvent() }
+        binding.etEventInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                submitEvent()
+                true
+            } else {
+                false
+            }
+        }
     }
 
     private fun confirmDismissIfNeeded() {
@@ -319,88 +321,31 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         showKeyboard()
     }
 
-    private fun setupCalendarSpinner() {
-        binding.spinnerCalendars.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (position in availableCalendars.indices) {
-                    val calendar = availableCalendars[position]
-                    selectedCalendar = calendar
-                    calendarPreferences.saveSelectedCalendar(calendar.id)
-                }
-            }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) {
-                selectedCalendar = null
-            }
-        }
-    }
-
     private fun requestCalendarPermissionsIfNeeded() {
         permissionsRequested = true
-        if (!hasCalendarAccessForCurrentMode()) {
-            permissionLauncher.launch(getCalendarPermissionsForCurrentMode())
-        } else {
+        if (PermissionHelper.hasReadCalendarPermission(this)) {
             loadCalendars()
+        } else {
+            permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
         }
     }
-
-    private fun getCalendarPermissionsForCurrentMode(): Array<String> =
-        if (appSettings.openCalendarEventDraft) {
-            arrayOf(Manifest.permission.READ_CALENDAR)
-        } else {
-            PermissionHelper.getRequiredPermissions()
-        }
-
-    private fun hasCalendarAccessForCurrentMode(): Boolean =
-        if (appSettings.openCalendarEventDraft) {
-            PermissionHelper.hasReadCalendarPermission(this)
-        } else {
-            PermissionHelper.hasCalendarPermissions(this)
-        }
 
     private fun loadCalendars() {
         lifecycleScope.launch(Dispatchers.Default) {
+            // All calendars accessible on the device, writable or read-only:
+            // they drive the event preview, and the selected one pre-fills the draft.
             val calendars = calendarPreferences.filterHiddenCalendars(
                 calendarRepository.findAllCalendars(),
                 appSettings.hiddenCalendarIds
             )
-            val preview = calendarPreferences.filterHiddenCalendars(
-                calendarRepository.findAllCalendars(includeReadOnly = true),
-                appSettings.hiddenCalendarIds
-            )
             withContext(Dispatchers.Main) {
-                availableCalendars = calendars
-                previewCalendars = preview
+                previewCalendars = calendars
                 selectedCalendar = calendarPreferences.selectCalendar(calendars)
-                if (calendars.size > 1) {
-                    populateCalendarSpinner(calendars)
-                    binding.spinnerCalendars.visibility = View.VISIBLE
-
-                    val selectedIndex = calendars.indexOfFirst { it.id == selectedCalendar?.id }
-                    if (selectedIndex >= 0) {
-                        binding.spinnerCalendars.setSelection(selectedIndex)
-                    }
-                } else if (calendars.isNotEmpty()) {
-                    binding.spinnerCalendars.visibility = View.GONE
-                } else {
-                    showError("No writable calendars found")
-                }
 
                 // Calendars arrived after the first lookup ran with an empty set — re-run it.
                 scheduleEventLookup(binding.etEventInput.text.toString())
             }
         }
-    }
-
-    private fun populateCalendarSpinner(calendars: List<CalendarRepository.CalendarInfo>) {
-        val calendarNames = calendars.map { it.displayName }
-        val adapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_item,
-            calendarNames
-        )
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        binding.spinnerCalendars.adapter = adapter
     }
 
     private fun submitEvent() {
@@ -422,29 +367,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             return
         }
 
-        if (appSettings.openCalendarEventDraft) {
-            openCalendarEventDraft(draft)
-            return
-        }
-
-        if (!PermissionHelper.hasCalendarPermissions(this)) {
-            requestCalendarPermissionsIfNeeded()
-            return
-        }
-
-        proceedWithEventCreation()
-    }
-
-    private fun proceedWithEventCreation() {
-        val draft = currentDraft ?: return
-        
-        val calendar = selectedCalendar
-        if (calendar == null) {
-            showError("No calendar selected. Please ensure you have at least one calendar configured.")
-            return
-        }
-
-        createEvent(draft, calendar)
+        openCalendarEventDraft(draft)
     }
 
     private fun openCalendarEventDraft(draft: CalendarEventDraft) {
@@ -455,7 +378,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             putExtra(CalendarContract.Events.TITLE, draft.titleText ?: "Event")
             putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.toInstant().toEpochMilli())
             putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end.toInstant().toEpochMilli())
-            (selectedCalendar?.id ?: calendarPreferences.getSelectedCalendarId())?.let { calendarId ->
+            selectedCalendar?.id?.let { calendarId ->
                 putExtra(CalendarContract.Events.CALENDAR_ID, calendarId)
             }
         }
@@ -467,70 +390,6 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             Log.e("CalendarQuickAdd", "Cannot open calendar event draft", e)
             showError("Cannot open calendar app")
         }
-    }
-
-    private fun createEvent(
-        draft: CalendarEventDraft,
-        calendar: CalendarRepository.CalendarInfo
-    ) {
-        lifecycleScope.launch(Dispatchers.Default) {
-            try {
-                val eventId = calendarRepository.insertEvent(
-                    calendarId = calendar.id,
-                    title = draft.titleText ?: "Event",
-                    startTime = draft.parsedStart!!,
-                    endTime = draft.parsedEnd,
-                    timezone = draft.timezoneId
-                )
-
-                withContext(Dispatchers.Main) {
-                    if (eventId != null) {
-                        showEventCreatedFeedback()
-                    } else {
-                        showError("Failed to create event. Please try again.")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("CalendarQuickAdd", "Error creating event", e)
-                withContext(Dispatchers.Main) {
-                    showError("Failed to create event. Please try again.")
-                }
-            }
-        }
-    }
-
-    private fun showEventCreatedFeedback() {
-        val draft = currentDraft ?: return
-        val title = draft.titleText ?: "Event"
-        val timeStr = formatParsedTime(draft, useRelativeDate = true)
-        val message = "✓ $title\n$timeStr"
-
-        hidePreviewPanel()
-        binding.layoutInput.visibility = android.view.View.GONE
-        binding.tvConfirmation.text = message
-        binding.tvConfirmation.setTextColor(
-            MaterialColors.getColor(
-                this,
-                com.google.android.material.R.attr.colorPrimary,
-                ContextCompat.getColor(this, R.color.primary)
-            )
-        )
-        binding.tvConfirmation.visibility = android.view.View.VISIBLE
-        binding.tvConfirmation.movementMethod = LinkMovementMethod.getInstance()
-        binding.tvConfirmation.setOnClickListener {
-            openCalendarApp()
-        }
-
-        binding.root.postDelayed({
-            finish()
-        }, 2000)
-    }
-
-    private fun openCalendarApp() {
-        startIntentSafely(
-            Intent(Intent.ACTION_VIEW).setData(CalendarIntentUris.dateUri(currentDraft?.parsedStart)),
-            "Cannot open calendar app"
-        )
     }
 
     private fun openAppSettings() {
@@ -559,16 +418,12 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private fun showPermissionDeniedMessage(canRetry: Boolean) {
         Snackbar.make(
             binding.root,
-            if (appSettings.openCalendarEventDraft) {
-                "Calendar permission required to show calendars"
-            } else {
-                "Calendar permission required to create events"
-            },
+            "Calendar permission required to show events",
             Snackbar.LENGTH_LONG
         )
             .setAction(if (canRetry) "Retry" else "Settings") {
                 if (canRetry) {
-                    permissionLauncher.launch(getCalendarPermissionsForCurrentMode())
+                    permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
                 } else {
                     openAppSettings()
                 }
@@ -580,46 +435,9 @@ class CalendarQuickAddActivity : AppCompatActivity() {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
-    private fun formatParsedTime(draft: CalendarEventDraft, useRelativeDate: Boolean = false): String {
-        if (draft.parsedStart == null) return "No time parsed"
-
-        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-        val timeStr = draft.parsedStart.format(timeFormatter)
-
-        val dayStr = if (useRelativeDate) {
-            val now = ZonedDateTime.now(deviceZoneId)
-            val today = now.toLocalDate()
-            val tomorrow = today.plusDays(1)
-            val eventDate = draft.parsedStart.toLocalDate()
-
-            when (eventDate) {
-                today -> "Today"
-                tomorrow -> "Tomorrow"
-                else -> draft.parsedStart.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
-            }
-        } else {
-            draft.parsedStart.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
-        }
-
-        return if (draft.parsedEnd != null && draft.parsedEnd.isAfter(draft.parsedStart.plusHours(1))) {
-            val endStr = draft.parsedEnd.format(timeFormatter)
-            "$dayStr at $timeStr - $endStr"
-        } else {
-            "$dayStr at $timeStr"
-        }
-    }
-
     override fun onDestroy() {
         parseJob?.cancel()
         eventLookupJob?.cancel()
         super.onDestroy()
-    }
-}
-
-internal object CalendarIntentUris {
-    fun dateUri(start: ZonedDateTime?): Uri {
-        val builder = Uri.parse("content://com.android.calendar/time").buildUpon()
-        start?.let { builder.appendPath(it.toInstant().toEpochMilli().toString()) }
-        return builder.build()
     }
 }

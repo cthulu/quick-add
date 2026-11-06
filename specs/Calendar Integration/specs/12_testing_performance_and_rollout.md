@@ -25,8 +25,8 @@ Test phrases (minimum set):
 
 ### Integration Tests
 - `DateParserService` + UI state pipeline
-- Calendar insert repository/service with mocked resolver
-- Permission branching behavior
+- Calendar repository (calendar list + event query) with mocked resolver
+- Read-only permission behavior
 
 ### UI Tests
 - Typing updates highlight spans correctly

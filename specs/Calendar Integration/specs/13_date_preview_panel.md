@@ -13,7 +13,7 @@ When the user types text that resolves to a date/time, show a floating preview p
 - Showing events from hidden (user setting) or non-visible calendars.
 - All-day events or past events.
 
-Read-only calendars (e.g. shared calendars the user cannot post to) are included in the preview — their events can still conflict — even though the calendar dropdown only offers writable calendars.
+Read-only calendars (e.g. shared calendars the user cannot post to) are also included in the preview — their events can still conflict.
 
 ## Technical Details
 
@@ -43,7 +43,7 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 - Both showing and hiding go through the 300ms lookup debounce, so the panel settles after the user stops typing.
 
 ### UI Layout
-- Panel sits above `etEventInput` in `layout_calendar_floating_widget.xml` (top of the input layout).
+- Panel sits directly above the input row in `layout_calendar_floating_widget.xml`.
 - **Header**: Day label, e.g. `Wednesday, Nov 4`.
 - **Body**: `RecyclerView` listing event rows.
 - Each row displays a small circular dot in the calendar's color, then `start_time – end_time  title` (e.g. `• 13:00 – 14:30  Client call`). The dot is a tinted oval shape; the calendar name is stored on the item but not displayed.
@@ -63,8 +63,8 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 ### Modified Files
 | File | Changes |
 |---|---|
-| `calendar/CalendarRepository.kt` | Add `findEventsOnDay(dayStartMillis, dayEndMillis, calendars)` querying the `Instances` time-range (expands recurring events) and mapping occurrences, including each calendar's color and name. `CalendarInfo` gains `color` (from `Calendars.CALENDAR_COLOR`); `findAllCalendars(includeReadOnly)` gains the flag so the preview can include read-only shared calendars |
-| `calendar/CalendarQuickAddActivity.kt` | Add 300ms lookup debounce; query & populate panel on `RESOLVED`; hide on other states. Loads two calendar sets: the writable set (dropdown/creation) and the full visible set (preview query) |
+| `calendar/CalendarRepository.kt` | Add `findEventsOnDay(dayStartMillis, dayEndMillis, calendars)` querying the `Instances` time-range (expands recurring events) and mapping occurrences, including each calendar's color and name. `CalendarInfo` gains `color` (from `Calendars.CALENDAR_COLOR`); `findAllCalendars` returns all visible calendars on the device, including read-only shared calendars |
+| `calendar/CalendarQuickAddActivity.kt` | Add 300ms lookup debounce; query & populate panel on `RESOLVED`; hide on other states. Loads the device's visible calendars for the preview query and the draft pre-fill |
 | `res/layout/layout_calendar_floating_widget.xml` | Insert preview panel above the text input |
 
 ### Performance
@@ -75,7 +75,7 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 
 ### Testing
 - `EventPreviewSelectionTest` covers buffer filtering, past-event exclusion, chronological sorting, and the closest-six trim.
-- `CalendarRepositoryTest` covers `findEventsOnDay`: canonical Instances range query, all-day exclusion, requested-calendar filtering, field and color/name mapping, recurring occurrence mapping, moved-exception dedupe, chronological sorting, and the empty-calendar early return. `findAllCalendars` asserts the calendar color is read from the provider, the writable-only default, and the read-only inclusion when requested.
+- `CalendarRepositoryTest` covers `findEventsOnDay`: canonical Instances range query, all-day exclusion, requested-calendar filtering, field and color/name mapping, recurring occurrence mapping, moved-exception dedupe, chronological sorting, and the empty-calendar early return. `findAllCalendars` asserts the calendar color is read from the provider and that read-only calendars are included.
 
 ## Deliverables
 - Preview panel appears when date/time is parsed, showing surrounding events.
@@ -91,7 +91,7 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 - When more than 6 events exist, the 6 closest to the parsed start time are shown.
 - Panel hides shortly after the user deletes the date/time text (gated by the 300ms lookup debounce).
 - All-day events and past events do not appear in the preview.
-- Only events from visible (non-hidden) calendars are shown, including read-only shared calendars (e.g. a colleague's shared calendar) — the calendar dropdown itself stays writable-only.
+- Only events from visible (non-hidden) calendars are shown, including read-only shared calendars (e.g. a colleague's shared calendar).
 - Each row's dot uses the color of the calendar the event belongs to.
 - No jank or ANRs from the query loop during rapid typing.
 

@@ -1,14 +1,12 @@
 package nl.freshlytyped.keepquickadd.calendar
 
 import android.content.ContentResolver
-import android.content.ContentValues
 import android.content.Context
 import android.database.MatrixCursor
 import android.graphics.Color
 import android.net.Uri
 import android.provider.CalendarContract
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -16,7 +14,6 @@ import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.isNull
 import org.mockito.kotlin.mock
@@ -42,49 +39,10 @@ class CalendarRepositoryTest {
     }
 
     @Test
-    fun `findWritableCalendar prefers primary writable visible calendar`() {
+    fun `findAllCalendars returns all visible calendars including read-only`() {
         val cursor = calendarCursor(
-            CalendarRow(1, "First", 1, CalendarContract.Calendars.CAL_ACCESS_EDITOR),
-            CalendarRow(2, "Primary", 1, CalendarContract.Calendars.CAL_ACCESS_EDITOR, isPrimary = true)
-        )
-        whenever(contentResolver.query(
-            any(), any(), eq("${CalendarContract.Calendars.VISIBLE} = 1"), isNull(), isNull()
-        )).thenReturn(cursor)
-
-        assertEquals(2L, repository.findWritableCalendar()?.id)
-    }
-
-    @Test
-    fun `findWritableCalendar falls back to first writable visible calendar`() {
-        val cursor = calendarCursor(
-            CalendarRow(1, "First", 1, CalendarContract.Calendars.CAL_ACCESS_EDITOR),
-            CalendarRow(2, "Read-only primary", 1, CalendarContract.Calendars.CAL_ACCESS_READ),
-            CalendarRow(3, "Second", 1, CalendarContract.Calendars.CAL_ACCESS_EDITOR)
-        )
-        whenever(contentResolver.query(
-            any(), any(), eq("${CalendarContract.Calendars.VISIBLE} = 1"), isNull(), isNull()
-        )).thenReturn(cursor)
-
-        assertEquals(1L, repository.findWritableCalendar()?.id)
-    }
-
-    @Test
-    fun `findWritableCalendar returns null when no visible calendar is writable`() {
-        val cursor = calendarCursor(
-            CalendarRow(1, "Read only", 1, CalendarContract.Calendars.CAL_ACCESS_READ)
-        )
-        whenever(contentResolver.query(
-            any(), any(), eq("${CalendarContract.Calendars.VISIBLE} = 1"), isNull(), isNull()
-        )).thenReturn(cursor)
-
-        assertEquals(null, repository.findWritableCalendar())
-    }
-
-    @Test
-    fun `findAllCalendars returns only writable calendars from provider result`() {
-        val cursor = calendarCursor(
-            CalendarRow(1, "Writable", 1, CalendarContract.Calendars.CAL_ACCESS_EDITOR, color = 0xFF226699.toInt()),
-            CalendarRow(2, "Read only", 1, CalendarContract.Calendars.CAL_ACCESS_READ)
+            CalendarRow(1, "Writable", color = 0xFF226699.toInt()),
+            CalendarRow(2, "Shared read-only")
         )
         whenever(contentResolver.query(
             any(), any(), eq("${CalendarContract.Calendars.VISIBLE} = 1"), isNull(), isNull()
@@ -92,76 +50,8 @@ class CalendarRepositoryTest {
 
         val calendars = repository.findAllCalendars()
 
-        assertEquals(listOf(1L), calendars.map { it.id })
-        assertEquals(0xFF226699.toInt(), calendars.single().color)
-    }
-
-    @Test
-    fun `findAllCalendars includes read-only calendars when requested`() {
-        val cursor = calendarCursor(
-            CalendarRow(1, "Writable", 1, CalendarContract.Calendars.CAL_ACCESS_EDITOR),
-            CalendarRow(2, "Shared read-only", 1, CalendarContract.Calendars.CAL_ACCESS_READ)
-        )
-        whenever(contentResolver.query(
-            any(), any(), eq("${CalendarContract.Calendars.VISIBLE} = 1"), isNull(), isNull()
-        )).thenReturn(cursor)
-
-        val calendars = repository.findAllCalendars(includeReadOnly = true)
-
         assertEquals(listOf(1L, 2L), calendars.map { it.id })
-    }
-
-    @Test
-    fun `insertEvent leaves alarm configuration to the calendar provider`() {
-        whenever(contentResolver.insert(any(), any()))
-            .thenReturn(Uri.parse("content://com.android.calendar/events/42"))
-
-        val eventId = repository.insertEvent(
-            calendarId = 7L,
-            title = "Planning",
-            startTime = ZonedDateTime.of(2026, 9, 9, 10, 0, 0, 0, ZoneId.of("UTC")),
-            endTime = null,
-            timezone = "UTC"
-        )
-
-        val valuesCaptor = argumentCaptor<ContentValues>()
-        verify(contentResolver).insert(eq(CalendarContract.Events.CONTENT_URI), valuesCaptor.capture())
-        verify(contentResolver, never()).insert(eq(CalendarContract.Reminders.CONTENT_URI), any())
-
-        assertEquals(42L, eventId)
-        assertFalse(valuesCaptor.firstValue.containsKey(CalendarContract.Events.HAS_ALARM))
-    }
-
-    @Test
-    fun `insertEvent returns null when calendar provider returns null URI`() {
-        whenever(contentResolver.insert(any(), any())).thenReturn(null)
-
-        val eventId = repository.insertEvent(
-            calendarId = 7L,
-            title = "Planning",
-            startTime = startTime,
-            endTime = null,
-            timezone = "UTC"
-        )
-
-        assertEquals(null, eventId)
-    }
-
-    @Test
-    fun `insertEvent returns null when calendar provider throws`() {
-        doThrow(IllegalStateException("provider unavailable"))
-            .whenever(contentResolver)
-            .insert(any(), any())
-
-        val eventId = repository.insertEvent(
-            calendarId = 7L,
-            title = "Planning",
-            startTime = startTime,
-            endTime = null,
-            timezone = "UTC"
-        )
-
-        assertEquals(null, eventId)
+        assertEquals(0xFF226699.toInt(), calendars.first().color)
     }
 
     @Test
@@ -287,7 +177,7 @@ class CalendarRepositoryTest {
     private fun calendarCursor(vararg rows: CalendarRow): MatrixCursor {
         return MatrixCursor(projection).apply {
             rows.forEach { row ->
-                addRow(arrayOf<Any?>(row.id, row.name, row.visible, row.ownerAccount, row.accessLevel, row.color, if (row.isPrimary) 1 else 0))
+                addRow(arrayOf<Any?>(row.id, row.name, row.ownerAccount, row.color))
             }
         }
     }
@@ -303,10 +193,7 @@ class CalendarRepositoryTest {
     private data class CalendarRow(
         val id: Long,
         val name: String,
-        val visible: Int,
-        val accessLevel: Int,
         val ownerAccount: String = "",
-        val isPrimary: Boolean = false,
         val color: Int = Color.GRAY
     )
 
@@ -329,11 +216,8 @@ class CalendarRepositoryTest {
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
             CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
-            CalendarContract.Calendars.VISIBLE,
             CalendarContract.Calendars.OWNER_ACCOUNT,
-            CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
-            CalendarContract.Calendars.CALENDAR_COLOR,
-            CalendarContract.Calendars.IS_PRIMARY
+            CalendarContract.Calendars.CALENDAR_COLOR
         )
 
         val instanceProjection = arrayOf(

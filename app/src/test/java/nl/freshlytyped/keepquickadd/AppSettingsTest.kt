@@ -159,18 +159,6 @@ class AppSettingsTest {
     }
 
     @Test
-    fun `calendar event draft is disabled by default`() {
-        assertFalse(settings.openCalendarEventDraft)
-    }
-
-    @Test
-    fun `calendar event draft preference persists`() {
-        settings.openCalendarEventDraft = true
-
-        assertTrue(AppSettings(context).openCalendarEventDraft)
-    }
-
-    @Test
     fun `calendar settings button is visible by default`() {
         assertFalse(settings.hideCalendarSettingsButton)
     }

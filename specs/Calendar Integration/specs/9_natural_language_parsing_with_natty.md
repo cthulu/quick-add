@@ -11,7 +11,7 @@ Integrate Natty as the natural-language parser backend and produce structured pa
 
 ## Non-Goals
 - UI highlighting polish is handled in next step.
-- Calendar insertion is handled in step 11.
+- Calendar integration is handled in step 11.
 
 ## Technical Details
 
