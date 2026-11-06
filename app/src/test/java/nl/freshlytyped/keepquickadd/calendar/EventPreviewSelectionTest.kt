@@ -50,6 +50,29 @@ class EventPreviewSelectionTest {
     }
 
     @Test
+    fun `keeps tomorrow events near the parsed time`() {
+        val tomorrowStart = day.plusDays(1).atTime(13, 0).atZone(zone)
+        val tomorrowEnd = tomorrowStart.plusHours(1)
+        val tomorrowEvent = CalendarEventItem(
+            9L,
+            "Lunch",
+            tomorrowStart,
+            tomorrowEnd,
+            0xFF226699.toInt(),
+            "Calendar"
+        )
+
+        val selected = EventPreviewSelection.select(
+            events = listOf(tomorrowEvent),
+            parsedStart = tomorrowStart,
+            parsedEnd = tomorrowEnd,
+            now = at(10, 0)
+        )
+
+        assertEquals(listOf(9L), selected.map { it.id })
+    }
+
+    @Test
     fun `excludes events outside the buffer`() {
         val events = listOf(
             event(1, 10, 0, 11, 0),   // before buffer

@@ -1,7 +1,6 @@
 package nl.freshlytyped.keepquickadd.calendar
 
 import android.content.ContentResolver
-import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Color
@@ -15,7 +14,7 @@ class CalendarRepository(private val context: Context) {
 
     private val contentResolver: ContentResolver = context.contentResolver
 
-    fun findAllCalendars(): List<CalendarInfo> {
+    fun findAllCalendars(includeReadOnly: Boolean = false): List<CalendarInfo> {
         return try {
             val calendarsUri = CalendarContract.Calendars.CONTENT_URI
             val projection = arrayOf(
@@ -26,7 +25,7 @@ class CalendarRepository(private val context: Context) {
                 CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
                 CalendarContract.Calendars.CALENDAR_COLOR
             )
-            
+
             val selection = "${CalendarContract.Calendars.VISIBLE} = 1"
 
             contentResolver.query(
@@ -53,7 +52,10 @@ class CalendarRepository(private val context: Context) {
 
                     val isWritable = accessLevel >= CalendarContract.Calendars.CAL_ACCESS_EDITOR
 
-                    if (isWritable) {
+                    // Read-only calendars (e.g. shared calendars the user cannot post to)
+                    // are only included when the caller wants them, so the calendar
+                    // dropdown keeps offering only writable calendars.
+                    if (isWritable || includeReadOnly) {
                         calendars.add(
                             CalendarInfo(
                                 id = id,
@@ -187,16 +189,11 @@ class CalendarRepository(private val context: Context) {
         if (calendars.isEmpty()) return emptyList()
 
         return try {
-            // The time-range Instances query expands recurring events to one row per
-            // occurrence; the Events table only holds one row per series.
-            val instancesUri = CalendarContract.Instances.CONTENT_URI.buildUpon()
-                .apply {
-                    ContentUris.appendId(this, dayStartMillis)
-                    ContentUris.appendId(this, dayEndMillis)
-                }
-                .build()
+            // Use the provider's documented Instances query so recurring series are
+            // expanded for this range. Filter calendars in-process rather than passing
+            // a SQL selection to the special Instances URI.
             val projection = arrayOf(
-                CalendarContract.Events._ID,
+                CalendarContract.Instances.EVENT_ID,
                 CalendarContract.Events.TITLE,
                 CalendarContract.Events.ALL_DAY,
                 CalendarContract.Events.ORIGINAL_ID,
@@ -207,18 +204,15 @@ class CalendarRepository(private val context: Context) {
             )
 
             val calendarIds = calendars.map { it.id }
-            val idPlaceholders = calendarIds.joinToString(",") { "?" }
-            val selection = "${CalendarContract.Events.CALENDAR_ID} IN ($idPlaceholders)"
-            val selectionArgs = calendarIds.map { it.toString() }.toTypedArray()
+            val calendarIdSet = calendarIds.toSet()
 
-            contentResolver.query(
-                instancesUri,
+            CalendarContract.Instances.query(
+                contentResolver,
                 projection,
-                selection,
-                selectionArgs,
-                null
+                dayStartMillis,
+                dayEndMillis
             )?.use { cursor ->
-                val idIndex = cursor.getColumnIndex(CalendarContract.Events._ID)
+                val idIndex = cursor.getColumnIndex(CalendarContract.Instances.EVENT_ID)
                 val titleIndex = cursor.getColumnIndex(CalendarContract.Events.TITLE)
                 val allDayIndex = cursor.getColumnIndex(CalendarContract.Events.ALL_DAY)
                 val originalIdIndex = cursor.getColumnIndex(CalendarContract.Events.ORIGINAL_ID)
@@ -240,6 +234,8 @@ class CalendarRepository(private val context: Context) {
 
                 val rows = mutableListOf<Row>()
                 while (cursor.moveToNext()) {
+                    val calendarId = cursor.getLong(calendarIdIndex)
+                    if (calendarId !in calendarIdSet) continue
                     if (cursor.getInt(allDayIndex) == 1) continue
                     rows.add(
                         Row(
@@ -249,7 +245,7 @@ class CalendarRepository(private val context: Context) {
                             originalTime = if (cursor.isNull(originalTimeIndex)) null else cursor.getLong(originalTimeIndex),
                             begin = cursor.getLong(beginIndex),
                             end = if (cursor.isNull(endIndex)) cursor.getLong(beginIndex) else cursor.getLong(endIndex),
-                            calendarId = cursor.getLong(calendarIdIndex)
+                            calendarId = calendarId
                         )
                     )
                 }
@@ -263,7 +259,7 @@ class CalendarRepository(private val context: Context) {
 
                 val calendarById = calendars.associateBy { it.id }
 
-                rows
+                val events = rows
                     .filterNot { row -> row.originalId == null && "${row.id}:${row.begin}" in suppressed }
                     .sortedBy { it.begin }
                     .map {
@@ -277,6 +273,8 @@ class CalendarRepository(private val context: Context) {
                             calendarName = calendar?.displayName ?: "Unknown calendar"
                         )
                     }
+
+                events
             } ?: emptyList()
         } catch (e: Exception) {
             Log.e("CalendarRepository", "Error querying events", e)

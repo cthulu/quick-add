@@ -10,8 +10,10 @@ When the user types text that resolves to a date/time, show a floating preview p
 
 ## Non-Goals
 - Modifying or editing existing events.
-- Showing events from hidden or inaccessible calendars.
+- Showing events from hidden (user setting) or non-visible calendars.
 - All-day events or past events.
+
+Read-only calendars (e.g. shared calendars the user cannot post to) are included in the preview — their events can still conflict — even though the calendar dropdown only offers writable calendars.
 
 ## Technical Details
 
@@ -24,10 +26,10 @@ Each stage tracks its own revision counter; cancel the previous job on new input
 ### Event Query Logic
 Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 
-1. **Query**: the provider's `Instances` time-range (midnight to midnight of the identified day) from all visible calendars (the set shown in the dropdown, excluding hidden calendars). `Events` holds one row per event series, so a recurring event's later occurrences would never match a day query on it; `Instances` holds one row per occurrence (the provider expands recurrences), which covers one-time and recurring events uniformly.
+1. **Query**: use `CalendarContract.Instances.query` for the provider's time range (midnight to midnight of the identified day). This documented API expands recurring events into occurrences. Filter the returned rows against the visible calendars supplied by the app (including read-only shared calendars, excluding user-hidden calendars) in-process, rather than adding an app-specific selection to the special Instances URI.
 2. **Exclude all-day events** (via the joined `ALL_DAY` column).
 3. **Dedupe moved occurrences**: if the provider returns both a master occurrence and the exception that replaced it, keep only the exception (keyed on `ORIGINAL_ID` + `ORIGINAL_INSTANCE_TIME`).
-4. **Attach calendar color and name**: map each occurrence's `CALENDAR_ID` to the known calendars (the visible set passed in). `CalendarEventItem` carries `calendarColor` (drives the row dot; falls back to gray when the calendar is unknown) and `calendarName` (stored for future use, not displayed).
+4. **Attach calendar color and name**: map each occurrence's `CALENDAR_ID` to the known calendars (the visible set passed in). `CalendarEventItem` carries `calendarColor` (drives the row dot) and `calendarName` (stored for future use, not displayed).
 5. **Candidate buffer**: keep events that overlap the parsed window ±2 hours. For `14:00–15:00`, that is `12:00–17:00`.
 6. **Exclude past events**: drop events where `endTime < now`.
 7. **Sort**: Chronologically, earliest first.
@@ -61,8 +63,8 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 ### Modified Files
 | File | Changes |
 |---|---|
-| `calendar/CalendarRepository.kt` | Add `findEventsOnDay(dayStartMillis, dayEndMillis, calendars)` querying the `Instances` time-range (expands recurring events) and mapping occurrences, including each calendar's color and name. `CalendarInfo` gains `color` (from `Calendars.CALENDAR_COLOR`) |
-| `calendar/CalendarQuickAddActivity.kt` | Add 300ms lookup debounce; query & populate panel on `RESOLVED`; hide on other states. Passes the visible `CalendarInfo` list to `findEventsOnDay` |
+| `calendar/CalendarRepository.kt` | Add `findEventsOnDay(dayStartMillis, dayEndMillis, calendars)` querying the `Instances` time-range (expands recurring events) and mapping occurrences, including each calendar's color and name. `CalendarInfo` gains `color` (from `Calendars.CALENDAR_COLOR`); `findAllCalendars(includeReadOnly)` gains the flag so the preview can include read-only shared calendars |
+| `calendar/CalendarQuickAddActivity.kt` | Add 300ms lookup debounce; query & populate panel on `RESOLVED`; hide on other states. Loads two calendar sets: the writable set (dropdown/creation) and the full visible set (preview query) |
 | `res/layout/layout_calendar_floating_widget.xml` | Insert preview panel above the text input |
 
 ### Performance
@@ -73,7 +75,7 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 
 ### Testing
 - `EventPreviewSelectionTest` covers buffer filtering, past-event exclusion, chronological sorting, and the closest-six trim.
-- `CalendarRepositoryTest` covers `findEventsOnDay`: all-day exclusion, field mapping, calendar color/name mapping (including the unknown-calendar fallback), recurring-event expansion, moved-exception dedupe, chronological sorting, and the empty-calendar early return. `findAllCalendars` asserts the calendar color is read from the provider.
+- `CalendarRepositoryTest` covers `findEventsOnDay`: canonical Instances range query, all-day exclusion, requested-calendar filtering, field and color/name mapping, recurring occurrence mapping, moved-exception dedupe, chronological sorting, and the empty-calendar early return. `findAllCalendars` asserts the calendar color is read from the provider, the writable-only default, and the read-only inclusion when requested.
 
 ## Deliverables
 - Preview panel appears when date/time is parsed, showing surrounding events.
@@ -89,7 +91,7 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 - When more than 6 events exist, the 6 closest to the parsed start time are shown.
 - Panel hides shortly after the user deletes the date/time text (gated by the 300ms lookup debounce).
 - All-day events and past events do not appear in the preview.
-- Only events from visible (non-hidden) calendars are shown.
+- Only events from visible (non-hidden) calendars are shown, including read-only shared calendars (e.g. a colleague's shared calendar) — the calendar dropdown itself stays writable-only.
 - Each row's dot uses the color of the calendar the event belongs to.
 - No jank or ANRs from the query loop during rapid typing.
 

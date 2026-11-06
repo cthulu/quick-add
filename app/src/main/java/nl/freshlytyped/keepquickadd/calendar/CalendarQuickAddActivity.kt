@@ -61,6 +61,7 @@ class CalendarQuickAddActivity : AppCompatActivity() {
     private lateinit var appSettings: AppSettings
     private var currentDraft: CalendarEventDraft? = null
     private var availableCalendars: List<CalendarRepository.CalendarInfo> = emptyList()
+    private var previewCalendars: List<CalendarRepository.CalendarInfo> = emptyList()
     private var selectedCalendar: CalendarRepository.CalendarInfo? = null
 
     private var parseJob: Job? = null
@@ -191,8 +192,9 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             val dayStartMillis = day.atStartOfDay(deviceZoneId).toInstant().toEpochMilli()
             val dayEndMillis = day.plusDays(1).atStartOfDay(deviceZoneId).toInstant().toEpochMilli()
 
+            // Read-only shared calendars also show up, so the preview can warn about conflicts there too.
             val events = withContext(Dispatchers.Default) {
-                calendarRepository.findEventsOnDay(dayStartMillis, dayEndMillis, availableCalendars)
+                calendarRepository.findEventsOnDay(dayStartMillis, dayEndMillis, previewCalendars)
             }
 
             val selected = withContext(Dispatchers.Default) {
@@ -362,8 +364,13 @@ class CalendarQuickAddActivity : AppCompatActivity() {
                 calendarRepository.findAllCalendars(),
                 appSettings.hiddenCalendarIds
             )
+            val preview = calendarPreferences.filterHiddenCalendars(
+                calendarRepository.findAllCalendars(includeReadOnly = true),
+                appSettings.hiddenCalendarIds
+            )
             withContext(Dispatchers.Main) {
                 availableCalendars = calendars
+                previewCalendars = preview
                 selectedCalendar = calendarPreferences.selectCalendar(calendars)
                 if (calendars.size > 1) {
                     populateCalendarSpinner(calendars)

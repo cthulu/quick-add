@@ -75,6 +75,20 @@ class NattyDateParserServiceTest {
     }
 
     @Test
+    fun `parses Saturday 1pm lunch as the next Saturday at 13`() {
+        val zone = ZoneId.of("UTC")
+        val fixedParser = NattyDateParserService(InputNormalizer(), zone)
+        val now = ZonedDateTime.of(2026, 11, 6, 10, 0, 0, 0, zone)
+
+        val result = fixedParser.parse("Saturday 1pm lunch", now)
+
+        assertEquals(ParseState.RESOLVED, result.state)
+        assertNotNull(result.start)
+        assertEquals(java.time.LocalDate.of(2026, 11, 7), result.start!!.toLocalDate())
+        assertEquals(13, result.start!!.hour)
+    }
+
+    @Test
     fun testParseTimeWithAmPm() {
         val now = ZonedDateTime.now()
         val result = parser.parse("at 3pm", now)
