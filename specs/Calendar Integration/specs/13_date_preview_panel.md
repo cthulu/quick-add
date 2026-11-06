@@ -5,7 +5,7 @@ When the user types text that resolves to a date/time, show a floating preview p
 
 ## Scope
 - Query existing events from visible calendars around the parsed time window.
-- Display matching events in a scrollable panel above the input field.
+- Display matching events in a scrollable panel above the input field, each row marked with a dot in its calendar's color.
 - Auto-hide the panel when the parsed text no longer resolves to a date/time.
 
 ## Non-Goals
@@ -27,11 +27,12 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 1. **Query**: the provider's `Instances` time-range (midnight to midnight of the identified day) from all visible calendars (the set shown in the dropdown, excluding hidden calendars). `Events` holds one row per event series, so a recurring event's later occurrences would never match a day query on it; `Instances` holds one row per occurrence (the provider expands recurrences), which covers one-time and recurring events uniformly.
 2. **Exclude all-day events** (via the joined `ALL_DAY` column).
 3. **Dedupe moved occurrences**: if the provider returns both a master occurrence and the exception that replaced it, keep only the exception (keyed on `ORIGINAL_ID` + `ORIGINAL_INSTANCE_TIME`).
-4. **Candidate buffer**: keep events that overlap the parsed window ±2 hours. For `14:00–15:00`, that is `12:00–17:00`.
-5. **Exclude past events**: drop events where `endTime < now`.
-6. **Sort**: Chronologically, earliest first.
-7. **Limit**: If ≤6 candidates, show all. If >6, keep the 6 closest to the parsed window, then re-sort chronologically.
-8. **Empty results**: Keep the panel hidden (`GONE`).
+4. **Attach calendar color and name**: map each occurrence's `CALENDAR_ID` to the known calendars (the visible set passed in). `CalendarEventItem` carries `calendarColor` (drives the row dot; falls back to gray when the calendar is unknown) and `calendarName` (stored for future use, not displayed).
+5. **Candidate buffer**: keep events that overlap the parsed window ±2 hours. For `14:00–15:00`, that is `12:00–17:00`.
+6. **Exclude past events**: drop events where `endTime < now`.
+7. **Sort**: Chronologically, earliest first.
+8. **Limit**: If ≤6 candidates, show all. If >6, keep the 6 closest to the parsed window, then re-sort chronologically.
+9. **Empty results**: Keep the panel hidden (`GONE`).
 
 ### Panel Visibility Rules
 - `RESOLVED` parse + non-empty query results → panel `VISIBLE`.
@@ -43,24 +44,25 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 - Panel sits above `etEventInput` in `layout_calendar_floating_widget.xml` (top of the input layout).
 - **Header**: Day label, e.g. `Wednesday, Nov 4`.
 - **Body**: `RecyclerView` listing event rows.
-- Each row displays: `start_time – end_time  title` (e.g. `13:00 – 14:30  Client call`).
+- Each row displays a small circular dot in the calendar's color, then `start_time – end_time  title` (e.g. `• 13:00 – 14:30  Client call`). The dot is a tinted oval shape; the calendar name is stored on the item but not displayed.
 - Compact padding, subtle dividers between rows.
 - Match the existing widget aesthetic (rounded corners, widget background color, dynamic Material colors).
 
 ### New Files
 | File | Purpose |
 |---|---|
-| `calendar/CalendarEventItem.kt` | Data class: `id`, `title`, `startTime`, `endTime` |
+| `calendar/CalendarEventItem.kt` | Data class: `id`, `title`, `startTime`, `endTime`, `calendarColor` (dot tint), `calendarName` (stored, not displayed) |
 | `calendar/EventPreviewSelection.kt` | Pure buffer/proximity selection logic (unit tested) |
-| `calendar/EventPreviewAdapter.kt` | `ListAdapter` for event rows (diff key = event id + start time, since one event can appear twice in a day) |
+| `calendar/EventPreviewAdapter.kt` | `ListAdapter` for event rows (diff key = event id + start time, since one event can appear twice in a day); tints the row dot with the calendar color |
 | `res/layout/layout_event_preview_panel.xml` | Panel container: day header + `RecyclerView` |
-| `res/layout/layout_event_preview_row.xml` | Single event row layout |
+| `res/layout/layout_event_preview_row.xml` | Single event row layout: color dot + time + title |
+| `res/drawable/shape_event_calendar_dot.xml` | Circular dot shape, tinted at bind time |
 
 ### Modified Files
 | File | Changes |
 |---|---|
-| `calendar/CalendarRepository.kt` | Add `findEventsOnDay(dayStartMillis, dayEndMillis, calendarIds)` querying the `Instances` time-range (expands recurring events) and mapping occurrences |
-| `calendar/CalendarQuickAddActivity.kt` | Add 300ms lookup debounce; query & populate panel on `RESOLVED`; hide on other states |
+| `calendar/CalendarRepository.kt` | Add `findEventsOnDay(dayStartMillis, dayEndMillis, calendars)` querying the `Instances` time-range (expands recurring events) and mapping occurrences, including each calendar's color and name. `CalendarInfo` gains `color` (from `Calendars.CALENDAR_COLOR`) |
+| `calendar/CalendarQuickAddActivity.kt` | Add 300ms lookup debounce; query & populate panel on `RESOLVED`; hide on other states. Passes the visible `CalendarInfo` list to `findEventsOnDay` |
 | `res/layout/layout_calendar_floating_widget.xml` | Insert preview panel above the text input |
 
 ### Performance
@@ -71,12 +73,13 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 
 ### Testing
 - `EventPreviewSelectionTest` covers buffer filtering, past-event exclusion, chronological sorting, and the closest-six trim.
-- `CalendarRepositoryTest` covers `findEventsOnDay`: all-day exclusion, field mapping, recurring-event expansion, moved-exception dedupe, chronological sorting, and the empty-calendar early return.
+- `CalendarRepositoryTest` covers `findEventsOnDay`: all-day exclusion, field mapping, calendar color/name mapping (including the unknown-calendar fallback), recurring-event expansion, moved-exception dedupe, chronological sorting, and the empty-calendar early return. `findAllCalendars` asserts the calendar color is read from the provider.
 
 ## Deliverables
 - Preview panel appears when date/time is parsed, showing surrounding events.
 - Panel auto-hides when text no longer resolves to a date/time.
 - All-day and past events are excluded.
+- Each preview row shows a dot in the color of the calendar the event belongs to.
 - Calendar query respects hidden calendar settings.
 
 ## Acceptance Criteria
@@ -87,6 +90,7 @@ Given the parsed event's start and end time (e.g., `14:00–15:00` on Nov 4):
 - Panel hides shortly after the user deletes the date/time text (gated by the 300ms lookup debounce).
 - All-day events and past events do not appear in the preview.
 - Only events from visible (non-hidden) calendars are shown.
+- Each row's dot uses the color of the calendar the event belongs to.
 - No jank or ANRs from the query loop during rapid typing.
 
 ## Dependencies

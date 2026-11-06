@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.graphics.Color
 import android.provider.CalendarContract
 import android.util.Log
 import java.time.Instant
@@ -22,7 +23,8 @@ class CalendarRepository(private val context: Context) {
                 CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
                 CalendarContract.Calendars.VISIBLE,
                 CalendarContract.Calendars.OWNER_ACCOUNT,
-                CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL
+                CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
+                CalendarContract.Calendars.CALENDAR_COLOR
             )
             
             val selection = "${CalendarContract.Calendars.VISIBLE} = 1"
@@ -38,6 +40,7 @@ class CalendarRepository(private val context: Context) {
                 val nameIndex = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME)
                 val accessIndex = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL)
                 val ownerIndex = cursor.getColumnIndex(CalendarContract.Calendars.OWNER_ACCOUNT)
+                val colorIndex = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_COLOR)
 
                 val calendars = mutableListOf<CalendarInfo>()
 
@@ -46,6 +49,7 @@ class CalendarRepository(private val context: Context) {
                     val name = cursor.getString(nameIndex) ?: "Unnamed Calendar"
                     val accessLevel = cursor.getInt(accessIndex)
                     val ownerAccount = cursor.getString(ownerIndex) ?: ""
+                    val color = if (cursor.isNull(colorIndex)) Color.GRAY else cursor.getInt(colorIndex)
 
                     val isWritable = accessLevel >= CalendarContract.Calendars.CAL_ACCESS_EDITOR
 
@@ -54,7 +58,8 @@ class CalendarRepository(private val context: Context) {
                             CalendarInfo(
                                 id = id,
                                 displayName = name,
-                                ownerAccount = ownerAccount
+                                ownerAccount = ownerAccount,
+                                color = color
                             )
                         )
                     }
@@ -77,7 +82,8 @@ class CalendarRepository(private val context: Context) {
                 CalendarContract.Calendars.VISIBLE,
                 CalendarContract.Calendars.OWNER_ACCOUNT,
                 CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
-                CalendarContract.Calendars.IS_PRIMARY
+                CalendarContract.Calendars.IS_PRIMARY,
+                CalendarContract.Calendars.CALENDAR_COLOR
             )
             
             val selection = "${CalendarContract.Calendars.VISIBLE} = 1"
@@ -94,6 +100,7 @@ class CalendarRepository(private val context: Context) {
                 val accessIndex = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL)
                 val ownerIndex = cursor.getColumnIndex(CalendarContract.Calendars.OWNER_ACCOUNT)
                 val primaryIndex = cursor.getColumnIndex(CalendarContract.Calendars.IS_PRIMARY)
+                val colorIndex = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_COLOR)
 
                 var primaryCalendar: CalendarInfo? = null
                 var firstWritableCalendar: CalendarInfo? = null
@@ -104,6 +111,7 @@ class CalendarRepository(private val context: Context) {
                     val accessLevel = cursor.getInt(accessIndex)
                     val ownerAccount = cursor.getString(ownerIndex) ?: ""
                     val isPrimary = cursor.getInt(primaryIndex) == 1
+                    val color = if (cursor.isNull(colorIndex)) Color.GRAY else cursor.getInt(colorIndex)
 
                     val isWritable = accessLevel >= CalendarContract.Calendars.CAL_ACCESS_EDITOR
 
@@ -111,7 +119,8 @@ class CalendarRepository(private val context: Context) {
                         val calendarInfo = CalendarInfo(
                             id = id,
                             displayName = name,
-                            ownerAccount = ownerAccount
+                            ownerAccount = ownerAccount,
+                            color = color
                         )
 
                         if (firstWritableCalendar == null) {
@@ -173,9 +182,9 @@ class CalendarRepository(private val context: Context) {
     fun findEventsOnDay(
         dayStartMillis: Long,
         dayEndMillis: Long,
-        calendarIds: List<Long>
+        calendars: List<CalendarInfo>
     ): List<CalendarEventItem> {
-        if (calendarIds.isEmpty()) return emptyList()
+        if (calendars.isEmpty()) return emptyList()
 
         return try {
             // The time-range Instances query expands recurring events to one row per
@@ -193,9 +202,11 @@ class CalendarRepository(private val context: Context) {
                 CalendarContract.Events.ORIGINAL_ID,
                 CalendarContract.Events.ORIGINAL_INSTANCE_TIME,
                 CalendarContract.Instances.BEGIN,
-                CalendarContract.Instances.END
+                CalendarContract.Instances.END,
+                CalendarContract.Events.CALENDAR_ID
             )
 
+            val calendarIds = calendars.map { it.id }
             val idPlaceholders = calendarIds.joinToString(",") { "?" }
             val selection = "${CalendarContract.Events.CALENDAR_ID} IN ($idPlaceholders)"
             val selectionArgs = calendarIds.map { it.toString() }.toTypedArray()
@@ -214,6 +225,7 @@ class CalendarRepository(private val context: Context) {
                 val originalTimeIndex = cursor.getColumnIndex(CalendarContract.Events.ORIGINAL_INSTANCE_TIME)
                 val beginIndex = cursor.getColumnIndex(CalendarContract.Instances.BEGIN)
                 val endIndex = cursor.getColumnIndex(CalendarContract.Instances.END)
+                val calendarIdIndex = cursor.getColumnIndex(CalendarContract.Events.CALENDAR_ID)
 
                 val zone = ZoneId.systemDefault()
                 data class Row(
@@ -222,7 +234,8 @@ class CalendarRepository(private val context: Context) {
                     val originalId: String?,
                     val originalTime: Long?,
                     val begin: Long,
-                    val end: Long
+                    val end: Long,
+                    val calendarId: Long
                 )
 
                 val rows = mutableListOf<Row>()
@@ -235,7 +248,8 @@ class CalendarRepository(private val context: Context) {
                             originalId = cursor.getString(originalIdIndex),
                             originalTime = if (cursor.isNull(originalTimeIndex)) null else cursor.getLong(originalTimeIndex),
                             begin = cursor.getLong(beginIndex),
-                            end = if (cursor.isNull(endIndex)) cursor.getLong(beginIndex) else cursor.getLong(endIndex)
+                            end = if (cursor.isNull(endIndex)) cursor.getLong(beginIndex) else cursor.getLong(endIndex),
+                            calendarId = cursor.getLong(calendarIdIndex)
                         )
                     )
                 }
@@ -247,15 +261,20 @@ class CalendarRepository(private val context: Context) {
                     .map { "${it.originalId}:${it.originalTime}" }
                     .toSet()
 
+                val calendarById = calendars.associateBy { it.id }
+
                 rows
                     .filterNot { row -> row.originalId == null && "${row.id}:${row.begin}" in suppressed }
                     .sortedBy { it.begin }
                     .map {
+                        val calendar = calendarById[it.calendarId]
                         CalendarEventItem(
                             id = it.id,
                             title = it.title,
                             startTime = Instant.ofEpochMilli(it.begin).atZone(zone),
-                            endTime = Instant.ofEpochMilli(it.end).atZone(zone)
+                            endTime = Instant.ofEpochMilli(it.end).atZone(zone),
+                            calendarColor = calendar?.color ?: Color.GRAY,
+                            calendarName = calendar?.displayName ?: "Unknown calendar"
                         )
                     }
             } ?: emptyList()
@@ -268,6 +287,7 @@ class CalendarRepository(private val context: Context) {
     data class CalendarInfo(
         val id: Long,
         val displayName: String,
-        val ownerAccount: String
+        val ownerAccount: String,
+        val color: Int
     )
 }

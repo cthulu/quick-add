@@ -96,5 +96,5 @@ class CalendarPreferencesTest {
     }
 
     private fun calendar(id: Long, name: String) =
-        CalendarRepository.CalendarInfo(id, name, "$name@example.com")
+        CalendarRepository.CalendarInfo(id, name, "$name@example.com", 0xFF226699.toInt())
 }

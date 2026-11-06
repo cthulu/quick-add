@@ -1,5 +1,6 @@
 package nl.freshlytyped.keepquickadd.calendar
 
+import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -27,6 +28,7 @@ class EventPreviewAdapter :
     class EventViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val timeView: TextView = view.findViewById(R.id.tvEventTime)
         private val titleView: TextView = view.findViewById(R.id.tvEventTitle)
+        private val calendarDot: View = view.findViewById(R.id.vCalendarDot)
         val divider: View = view.findViewById(R.id.divider)
 
         fun bind(event: CalendarEventItem) {
@@ -35,6 +37,7 @@ class EventPreviewAdapter :
             val end = event.endTime.format(formatter)
             timeView.text = if (start == end) start else "$start – $end"
             titleView.text = event.title
+            calendarDot.backgroundTintList = ColorStateList.valueOf(event.calendarColor)
         }
     }
 

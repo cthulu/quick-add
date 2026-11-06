@@ -16,7 +16,7 @@ class EventPreviewSelectionTest {
         day.atTime(hour, minute).atZone(zone)
 
     private fun event(id: Long, startHour: Int, startMin: Int = 0, endHour: Int, endMin: Int = 0) =
-        CalendarEventItem(id, "Event $id", at(startHour, startMin), at(endHour, endMin))
+        CalendarEventItem(id, "Event $id", at(startHour, startMin), at(endHour, endMin), 0xFF226699.toInt(), "Calendar")
 
     private val parsedStart = at(14, 0)
     private val parsedEnd = at(15, 0)

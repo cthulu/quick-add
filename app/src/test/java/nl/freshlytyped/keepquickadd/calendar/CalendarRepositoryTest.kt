@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
 import android.database.MatrixCursor
+import android.graphics.Color
 import android.net.Uri
 import android.provider.CalendarContract
 import org.junit.Assert.assertEquals
@@ -81,14 +82,17 @@ class CalendarRepositoryTest {
     @Test
     fun `findAllCalendars returns only writable calendars from provider result`() {
         val cursor = calendarCursor(
-            CalendarRow(1, "Writable", 1, CalendarContract.Calendars.CAL_ACCESS_EDITOR),
+            CalendarRow(1, "Writable", 1, CalendarContract.Calendars.CAL_ACCESS_EDITOR, color = 0xFF226699.toInt()),
             CalendarRow(2, "Read only", 1, CalendarContract.Calendars.CAL_ACCESS_READ)
         )
         whenever(contentResolver.query(
             any(), any(), eq("${CalendarContract.Calendars.VISIBLE} = 1"), isNull(), isNull()
         )).thenReturn(cursor)
 
-        assertEquals(listOf(1L), repository.findAllCalendars().map { it.id })
+        val calendars = repository.findAllCalendars()
+
+        assertEquals(listOf(1L), calendars.map { it.id })
+        assertEquals(0xFF226699.toInt(), calendars.single().color)
     }
 
     @Test
@@ -152,7 +156,7 @@ class CalendarRepositoryTest {
         )
         whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
 
-        val events = repository.findEventsOnDay(dtStart - 1_000, dtEnd + 1_000, listOf(7L))
+        val events = repository.findEventsOnDay(dtStart - 1_000, dtEnd + 1_000, listOf(calendar(7L)))
 
         assertEquals(listOf(2L), events.map { it.id })
     }
@@ -164,7 +168,7 @@ class CalendarRepositoryTest {
         )
         whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
 
-        val event = repository.findEventsOnDay(0, 20_000, listOf(1L, 2L)).single()
+        val event = repository.findEventsOnDay(0, 20_000, listOf(calendar(1L), calendar(2L))).single()
 
         assertEquals("Standup", event.title)
         assertEquals(10_000L, event.startTime.toInstant().toEpochMilli())
@@ -178,7 +182,7 @@ class CalendarRepositoryTest {
         )
         whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
 
-        val events = repository.findEventsOnDay(0, 200_000, listOf(1L))
+        val events = repository.findEventsOnDay(0, 200_000, listOf(calendar(1L)))
 
         assertEquals(1, events.size)
         assertEquals(100_000L, events.single().startTime.toInstant().toEpochMilli())
@@ -192,7 +196,7 @@ class CalendarRepositoryTest {
         )
         whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
 
-        val events = repository.findEventsOnDay(0, 200_000, listOf(1L))
+        val events = repository.findEventsOnDay(0, 200_000, listOf(calendar(1L)))
 
         assertEquals(listOf(9L), events.map { it.id })
         assertEquals(120_000L, events.single().startTime.toInstant().toEpochMilli())
@@ -206,9 +210,35 @@ class CalendarRepositoryTest {
         )
         whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
 
-        val events = repository.findEventsOnDay(0, 200_000, listOf(1L))
+        val events = repository.findEventsOnDay(0, 200_000, listOf(calendar(1L)))
 
         assertEquals(listOf(2L, 3L), events.map { it.id })
+    }
+
+    @Test
+    fun `findEventsOnDay maps the calendar color and name`() {
+        val cursor = instanceCursor(
+            InstanceRow(9, "Standup", allDay = 0, calendarId = 7, begin = 10_000, end = 11_000)
+        )
+        whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
+
+        val event = repository.findEventsOnDay(0, 20_000, listOf(calendar(7L, 0xFF226699.toInt()))).single()
+
+        assertEquals(0xFF226699.toInt(), event.calendarColor)
+        assertEquals("Calendar 7", event.calendarName)
+    }
+
+    @Test
+    fun `findEventsOnDay falls back when the occurrence is on an unknown calendar`() {
+        val cursor = instanceCursor(
+            InstanceRow(9, "Standup", allDay = 0, calendarId = 99, begin = 10_000, end = 11_000)
+        )
+        whenever(contentResolver.query(any(), any(), any(), any(), isNull())).thenReturn(cursor)
+
+        val event = repository.findEventsOnDay(0, 20_000, listOf(calendar(1L))).single()
+
+        assertEquals(Color.GRAY, event.calendarColor)
+        assertEquals("Unknown calendar", event.calendarName)
     }
 
     @Test
@@ -219,10 +249,13 @@ class CalendarRepositoryTest {
         verify(contentResolver, never()).query(any(), any(), any(), any(), any())
     }
 
+    private fun calendar(id: Long, color: Int = Color.GRAY) =
+        CalendarRepository.CalendarInfo(id, "Calendar $id", "", color)
+
     private fun calendarCursor(vararg rows: CalendarRow): MatrixCursor {
         return MatrixCursor(projection).apply {
             rows.forEach { row ->
-                addRow(arrayOf<Any?>(row.id, row.name, row.visible, row.ownerAccount, row.accessLevel, if (row.isPrimary) 1 else 0))
+                addRow(arrayOf<Any?>(row.id, row.name, row.visible, row.ownerAccount, row.accessLevel, if (row.isPrimary) 1 else 0, row.color))
             }
         }
     }
@@ -230,7 +263,7 @@ class CalendarRepositoryTest {
     private fun instanceCursor(vararg rows: InstanceRow): MatrixCursor {
         return MatrixCursor(instanceProjection).apply {
             rows.forEach { row ->
-                addRow(arrayOf<Any?>(row.id, row.title, row.allDay, row.originalId, row.originalTime, row.begin, row.end))
+                addRow(arrayOf<Any?>(row.id, row.title, row.allDay, row.originalId, row.originalTime, row.begin, row.end, row.calendarId))
             }
         }
     }
@@ -241,7 +274,8 @@ class CalendarRepositoryTest {
         val visible: Int,
         val accessLevel: Int,
         val ownerAccount: String = "",
-        val isPrimary: Boolean = false
+        val isPrimary: Boolean = false,
+        val color: Int = Color.GRAY
     )
 
     private data class InstanceRow(
@@ -251,7 +285,8 @@ class CalendarRepositoryTest {
         val originalId: String? = null,
         val originalTime: Long? = null,
         val begin: Long,
-        val end: Long
+        val end: Long,
+        val calendarId: Long = 1L
     )
 
     private companion object {
@@ -265,7 +300,8 @@ class CalendarRepositoryTest {
             CalendarContract.Calendars.VISIBLE,
             CalendarContract.Calendars.OWNER_ACCOUNT,
             CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
-            CalendarContract.Calendars.IS_PRIMARY
+            CalendarContract.Calendars.IS_PRIMARY,
+            CalendarContract.Calendars.CALENDAR_COLOR
         )
 
         val instanceProjection = arrayOf(
@@ -275,7 +311,8 @@ class CalendarRepositoryTest {
             CalendarContract.Events.ORIGINAL_ID,
             CalendarContract.Events.ORIGINAL_INSTANCE_TIME,
             CalendarContract.Instances.BEGIN,
-            CalendarContract.Instances.END
+            CalendarContract.Instances.END,
+            CalendarContract.Events.CALENDAR_ID
         )
     }
 }

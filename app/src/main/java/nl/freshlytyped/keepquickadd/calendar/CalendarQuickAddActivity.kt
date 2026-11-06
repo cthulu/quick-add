@@ -190,10 +190,9 @@ class CalendarQuickAddActivity : AppCompatActivity() {
             val day = start.toLocalDate()
             val dayStartMillis = day.atStartOfDay(deviceZoneId).toInstant().toEpochMilli()
             val dayEndMillis = day.plusDays(1).atStartOfDay(deviceZoneId).toInstant().toEpochMilli()
-            val calendarIds = availableCalendars.map { it.id }
 
             val events = withContext(Dispatchers.Default) {
-                calendarRepository.findEventsOnDay(dayStartMillis, dayEndMillis, calendarIds)
+                calendarRepository.findEventsOnDay(dayStartMillis, dayEndMillis, availableCalendars)
             }
 
             val selected = withContext(Dispatchers.Default) {
