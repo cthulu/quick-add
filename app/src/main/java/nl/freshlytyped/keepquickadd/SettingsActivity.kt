@@ -30,8 +30,8 @@ class SettingsActivity : AppCompatActivity() {
     private val calendarPermissionLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
-        if (PermissionHelper.hasCalendarPermissions(this)) loadCalendars()
-        else binding.tvCalendarStatus.text = "Calendar permission is required to show calendars."
+        if (PermissionHelper.hasReadCalendarPermission(this)) loadCalendars()
+        else binding.tvCalendarStatus.text = "Calendar permission is required to list calendars."
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,7 +61,6 @@ class SettingsActivity : AppCompatActivity() {
             binding.keepListsSection.visibility = android.view.View.GONE
         }
 
-        binding.cbOpenCalendarEventDraft.isChecked = settings.openCalendarEventDraft
         binding.cbHideCalendarSettingsButton.isChecked = settings.hideCalendarSettingsButton
         applyCalendarCheckboxAccent()
         requestCalendarPermissionsIfNeeded()
@@ -110,7 +109,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun requestCalendarPermissionsIfNeeded() {
-        if (PermissionHelper.hasCalendarPermissions(this)) loadCalendars()
+        if (PermissionHelper.hasReadCalendarPermission(this)) loadCalendars()
         else calendarPermissionLauncher.launch(PermissionHelper.getRequiredPermissions())
     }
 
@@ -128,11 +127,11 @@ class SettingsActivity : AppCompatActivity() {
         val hiddenIds = settings.hiddenCalendarIds
 
         if (calendars.isEmpty()) {
-            binding.tvCalendarStatus.text = "No writable calendars found."
+            binding.tvCalendarStatus.text = "No calendars found."
             return
         }
 
-        binding.tvCalendarStatus.text = "Unselect calendars to hide them from calendar quick add."
+        binding.tvCalendarStatus.text = "Unselect calendars to hide their events from the preview."
         calendars.forEach { calendar ->
             val checkbox = CheckBox(this).apply {
                 text = "${calendar.displayName} (${calendar.id})"
@@ -166,7 +165,6 @@ class SettingsActivity : AppCompatActivity() {
             intArrayOf(accentColor, uncheckedColor, disabledColor, disabledColor)
         )
 
-        binding.cbOpenCalendarEventDraft.buttonTintList = tint
         binding.cbHideCalendarSettingsButton.buttonTintList = tint
     }
 
@@ -238,7 +236,6 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         settings.hiddenCalendarIds = hiddenCalendarIds
-        settings.openCalendarEventDraft = binding.cbOpenCalendarEventDraft.isChecked
         settings.hideCalendarSettingsButton = binding.cbHideCalendarSettingsButton.isChecked
         Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
         finish()

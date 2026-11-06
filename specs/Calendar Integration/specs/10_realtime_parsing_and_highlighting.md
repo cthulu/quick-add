@@ -9,7 +9,7 @@ Provide live visual feedback while typing by highlighting recognized date/time p
 - Handle rapid typing without jank.
 
 ## Non-Goals
-- Event insertion/save logic (step 11).
+- Event draft hand-off to the calendar app (step 11).
 
 ## Technical Details
 

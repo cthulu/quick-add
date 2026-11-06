@@ -3,6 +3,7 @@ package nl.freshlytyped.keepquickadd.calendar
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -27,13 +28,18 @@ class PermissionHelperTest {
     }
 
     @Test
-    fun `calendar permissions are granted only when read and write are granted`() {
-        assertTrue(PermissionHelper.hasCalendarPermissions(context))
+    fun `read calendar permission is granted only when the provider grants it`() {
+        assertTrue(PermissionHelper.hasReadCalendarPermission(context))
 
-        whenever(context.checkPermission(eq(Manifest.permission.WRITE_CALENDAR), any(), any()))
+        whenever(context.checkPermission(eq(Manifest.permission.READ_CALENDAR), any(), any()))
             .thenReturn(PackageManager.PERMISSION_DENIED)
 
-        assertFalse(PermissionHelper.hasCalendarPermissions(context))
+        assertFalse(PermissionHelper.hasReadCalendarPermission(context))
+    }
+
+    @Test
+    fun `required permissions are read-only`() {
+        assertEquals(arrayOf(Manifest.permission.READ_CALENDAR), PermissionHelper.getRequiredPermissions())
     }
 
     @Test
